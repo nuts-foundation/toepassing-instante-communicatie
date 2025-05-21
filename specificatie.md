@@ -80,9 +80,38 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
 #### ✅ Identiteit Mapping
 
 - **Matrix User IDs** moeten gekoppeld worden aan bestaande zorgidentiteiten:
-  - **Zorgverleners**: Gebruik SAML authenticatie via Identity Provider (IdP) van zorgaanbieder.
+  - **Zorgverleners**: Gebruik SAML authenticatie via Identity Provider (IdP) van zorgaanbieder. mCSD wordt gebruikt om de mogelijke Matrix account van de Zorgverlener te lokaliseren op basis van hun identiteit in het zorgsysteem.
   - **RelatedPersons (bijv. mantelzorgers)**: Gebruik email + wachtwoord + 2FA via zorgplatform.
   - **Cliënten**: Optioneel onboarded; kunnen lokale Matrix accounts hebben gebaseerd op email.
+
+#### 🔄 3PID Identificatie voor Zorgverleners
+
+Zorgverleners (Practitioners) worden in Matrix geïdentificeerd met zowel hun Matrix ID als de mCSD resource URL als 3PID (Third-Party ID). Dit is essentieel omdat:
+
+- Het ontvangende systeem moet de mCSD-identiteit van de Practitioner kunnen terugzoeken (reverse-lookup)
+- De FHIR resource URL wordt toegevoegd als een 3PID in het Matrix gebruikersprofiel
+- Het 3PID mechanisme zorgt voor een betrouwbare koppeling tussen Matrix-identiteit en zorgsysteemidentiteit
+- Deze aanpak garandeert dat de identiteit consistent blijft tussen verschillende zorgsystemen
+
+**Voorbeeld van 3PID toevoeging:**
+```json
+{
+  "threepids": [
+    {
+      "medium": "fhir_url",
+      "address": "https://mcsd.example.org/fhir/Practitioner/practitioner-123",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "email",
+      "address": "dr.janssen@hospital-a.nl",
+      "validated_at": 1674123456789
+    }
+  ]
+}
+```
+
+Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen verschillende zorgsystemen die via Matrix communiceren.
 
 #### 🏠 Homeserver Toewijzing
 
@@ -286,6 +315,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   - Zorgverleners met hun Matrix homeserver informatie worden gepubliceerd in mCSD records.
   - Matrix homeserver adressen worden opgeslagen als Endpoints van de PractitionerRole.
   - Applicaties gebruiken mCSD om zorgverleners en services op te zoeken op functie of locatie.
+  - Tijdens identificatie en onboarding wordt de mCSD resource URL als 3PID aan het Matrix-gebruikersaccount gekoppeld.
 
 **Belangrijke FHIR Resources voor mCSD Integratie:**
 
@@ -367,6 +397,9 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
        - Gebruikersdata is al gesynchroniseerd of kan worden opgehaald via standaard integratie (Application Service, aka AS)
      - **Optie 2**: Homeserver behoort tot een andere leverancier
        - Gebruikersdata moet worden opgevraagd tijdens de sessie via client-server API
+  5. Bij nieuwe Practitioner accounts:
+     - Configureer de mCSD resource URL als 3PID via de Matrix Identity Server API
+     - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie
 
 #### 📚 Data Model Uitbreidingen
 
@@ -384,6 +417,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   2. Huidige leverancier observeert de wijziging en voor gebruikers die actief waren in hun homeserver maar nu elders toegewezen zijn:
      - Nodigt de nieuwe identiteit uit voor alle relevante rooms
      - Deactiveert het huidige account met Matrix [account deactivation API](https://spec.matrix.org/v1.14/client-server-api/#post_matrixclientv3accountdeactivate)
+  3. 3PIDs worden gebruikt om de identiteit te verifiëren tijdens de migratie, waarbij de mCSD resource URL als persistente identifier dient
 
 ---
 
