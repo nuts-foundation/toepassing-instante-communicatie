@@ -157,7 +157,6 @@ Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen versc
   - Voor **RelatedPersons** (bijv. mantelzorgers) en **Cliënten** worden identiteiten verschaft door het zorgplatform.
   - Een enkele IdentityServer per homeserver (vereist door Matrix spec).
 
-![Healthcare Provider Authentication Flow](diagrams/images/Healthcare Provider Authentication Flow.svg)
 ---
 
 ### **4. Communicatiemodel: Rooms, Threads & Care Teams**
@@ -467,8 +466,11 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
 - **Synapse** of een andere Matrix homeserver als kern.
 - Custom **IdentityServer** voor zorgplatforms:
   - Generieke Functie Adressering en mCSD.
-  - Authenticeer gebruikers met een zorgaanbieder IdP.
-    - Authenticeer gebruikers met "UZI" + "method", zoals Dezi
-  - Authenticeer de gebruikers met hun zorgplatform account.
+  - Authenticeer zorgverleners met een zorgaanbieder IdP.
+    - Pas de beschreven logica toe voor het lokaliseren en onboarden.
+  - Authenticeer de gebruikers met hun applicatie / platform account.
 - Andere **gedeelde libraries**:
   - Bericht transformatie (bijv. Healthcare FHIR ↔ Matrix)
+
+###### IdentityServer logica voor zorgverleners
+![Healthcare Provider Authentication Flow](diagrams/images/Healthcare%20Provider%20Authentication%20Flow.svg)
