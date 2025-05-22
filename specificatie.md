@@ -80,26 +80,45 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
 #### ✅ Identiteit Mapping
 
 - **Matrix User IDs** moeten gekoppeld worden aan bestaande zorgidentiteiten:
-  - **Zorgverleners**: Gebruik SAML authenticatie via Identity Provider (IdP) van zorgaanbieder. mCSD wordt gebruikt om de mogelijke Matrix account van de Zorgverlener te lokaliseren op basis van hun identiteit in het zorgsysteem.
-  - **RelatedPersons (bijv. mantelzorgers)**: Gebruik email + wachtwoord + 2FA via zorgplatform.
-  - **Cliënten**: Optioneel onboarded; kunnen lokale Matrix accounts hebben gebaseerd op email.
+  - **Zorgverleners**: Gebruik OIDC authenticatie via Identity Provider (IdP) van zorgaanbieder. mCSD wordt gebruikt om de mogelijke Matrix account van de Zorgverlener te lokaliseren op basis van hun identiteit in het zorgsysteem. Het UZI-nummer, URA-nummer en rolcode(s) worden gebruikt als 3PIDs voor identificatie.
+  - **RelatedPersons (bijv. mantelzorgers)**: Gebruik email + wachtwoord + 2FA via zorgplatform. Het email-adres wordt gebruikt als 3PID voor identificatie.
+  - **Cliënten**: Optioneel onboarded; kunnen lokale Matrix accounts hebben gebaseerd op email. Het email-adres wordt gebruikt als 3PID voor identificatie.
 
 #### 🔄 3PID Identificatie voor Zorgverleners
 
-Zorgverleners (Practitioners) worden in Matrix geïdentificeerd met zowel hun Matrix ID als de mCSD resource URL als 3PID (Third-Party ID). Dit is essentieel omdat:
+Voor zorgverleners (Practitioners) is het essentieel dat vanuit hun Matrix ID de bijbehorende mCSD FHIR resource URL kan worden achterhaald. Dit is nodig om het CareTeam correct te kunnen vullen met de juiste FHIR resource referenties voor implementaties die met FHIR werken.
 
-- Het ontvangende systeem moet de mCSD-identiteit van de Practitioner kunnen terugzoeken (reverse-lookup)
-- De FHIR resource URL wordt toegevoegd als een 3PID in het Matrix gebruikersprofiel
-- Het 3PID mechanisme zorgt voor een betrouwbare koppeling tussen Matrix-identiteit en zorgsysteemidentiteit
-- Deze aanpak garandeert dat de identiteit consistent blijft tussen verschillende zorgsystemen
+Zorgverleners worden daarom in Matrix geïdentificeerd met zowel hun Matrix ID als hun UZI-nummer, URA-nummer en rolcode als 3PIDs (Third-Party IDs):
+
+- **Reverse-lookup functionaliteit**: Het ontvangende systeem moet de zorgidentiteit van de Practitioner kunnen terugzoeken om de mCSD FHIR resource URL te vinden
+- **FHIR resource koppeling**: De UZI, URA en rolcode worden toegevoegd als 3PIDs in het Matrix gebruikersprofiel, waardoor de bijbehorende Practitioner of PractitionerRole resource URL kan worden achterhaald
+- **Consistente identiteit**: Het 3PID mechanisme zorgt voor een betrouwbare koppeling tussen Matrix-identiteit en zorgsysteemidentiteit
+- **Cross-systeem interoperabiliteit**: Deze aanpak garandeert dat de identiteit consistent blijft tussen verschillende zorgsystemen
+
+**Identificatie-elementen:**
+- **UZI-nummer**: Persoonlijke identifier voor de zorgverlener
+- **URA-nummer**: Identificeert de zorgorganisatie waar de zorgverlener werkzaam is
+- **Rolcode**: Geeft aan welke (beroeps-)rol de zorgverlener vervult bij de zorgaanbieder (conform FHIR PractitionerRole)
+
+Een zorgverlener kan meerdere rollen hebben bij dezelfde of verschillende organisaties, wat resulteert in meerdere PractitionerRole resources en bijbehorende 3PID combinaties.
 
 **Voorbeeld van 3PID toevoeging:**
 ```json
 {
   "threepids": [
     {
-      "medium": "fhir_url",
-      "address": "https://mcsd.example.org/fhir/Practitioner/practitioner-123",
+      "medium": "uzi_nr",
+      "address": "123456789",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "ura_nr",
+      "address": "00000001",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "role_code",
+      "address": "158965000",
       "validated_at": 1674123456789
     },
     {
@@ -111,7 +130,7 @@ Zorgverleners (Practitioners) worden in Matrix geïdentificeerd met zowel hun Ma
 }
 ```
 
-Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen verschillende zorgsystemen die via Matrix communiceren.
+Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen verschillende zorgsystemen die via Matrix communiceren, waarbij gebruik wordt gemaakt van de gestandaardiseerde zorgsector identifiers inclusief de specifieke rol die de zorgverlener vervult.
 
 #### 🏠 Homeserver Toewijzing
 
@@ -126,12 +145,19 @@ Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen versc
 #### ✅ IdentityServer API
 
 - Implementeer een **Matrix IdentityServer** die ondersteunt:
-  - Voor **Zorgverleners** is de identity server gebonden aan de IdP van de zorgaanbieder (`IdP + userID`), alternatief:
-    - Gebruik Generieke Functie Adressering om zorgverleners te lokaliseren.
-    - Gebruik `UZI + method` (Dezi) als identificatiemechanisme.
+  - Voor **Zorgverleners**: Na succesvolle authenticatie is het UZI-nummer en URA-nummer, en mogelijk de rolcode bekend. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is:
+    1. Zoek op waar de mCSD van het URA-nummer staat (nu is dat met NUTS discovery)
+    2. Als de gebruiker bij een ander mCSD staat:
+       - Zoek de resource op in dat externe mCSD
+       - Als die daar geen matrix-id heeft stopt het proces daar
+       - Als die wel bestaat, gebruik die gevonden matrix-id
+    3. Als de mCSD omgeving de eigen is:
+       - Kijk in de eigen mCSD database of deze al een matrix-account heeft
+       - Zo niet, maak dan een matrix-id aan met als 3PID de UZI, URA en eventueel rolcode
   - Voor **RelatedPersons** (bijv. mantelzorgers) en **Cliënten** worden identiteiten verschaft door het zorgplatform.
   - Een enkele IdentityServer per homeserver (vereist door Matrix spec).
 
+![Healthcare Provider Authentication Flow](diagrams/images/Healthcare Provider Authentication Flow.svg)
 ---
 
 ### **4. Communicatiemodel: Rooms, Threads & Care Teams**
@@ -292,11 +318,21 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
 
 #### 📨 Gebruiker Uitnodigingsmethoden
 
-- Uitnodigen via:
-  - **Homeserver ID** (bijv. `@user:homeserver.nl`)
-  - **Externe identifier + method** (bijv. `uzi:123456789`)
-- Zorgverleners worden gelokaliseerd door Generieke Functie Adressering via mCSD en automatisch onboarded.
-- RelatedPersons en cliënten ontvangen **email uitnodigingen**.
+**Zorgverleners:**
+Zorgverleners loggen in met de IdP van hun zorgorganisatie. Na succesvolle authenticatie is het UZI-nummer en URA-nummer, en mogelijk de rolcode bekend. Op het moment dat ze willen gaan communiceren met de matrix omgeving, wordt de volgende logica uitgevoerd om ze te onboarden:
+
+1. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is
+2. Wordt bepaald of de mCSD van de zorgaanbieder wordt beheerd door de huidige leverancier
+3. Afhankelijk van wie de mCSD beheert:
+   - Indien de mCSD niet door de huidige leverancier wordt beheerd:
+     - Wordt door middel van mCSD de zorgverlener opgezocht
+     - Indien de account niet bestaat, kan de zorgverlener enkel naar de omgeving van de zorgaanbieder worden verwezen om een matrix identiteit te krijgen
+   - Indien de mCSD door de huidige leverancier wordt beheerd kan automatisch een account worden aangemaakt
+
+*Vooralsnog gaan we er van uit dat de mCSD door dezelfde leverancier wordt geleverd als de homeserver.*
+
+**RelatedPersons en Cliënten:**
+RelatedPersons en cliënten ontvangen email uitnodigingen.
 
 ---
 
@@ -309,13 +345,15 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   - Elke zorgaanbieder selecteert één leverancier om hun mCSD endpoint te implementeren.
   - Het mCSD endpoint functioneert als een adresboek voor elke zorgaanbieder.
 
+Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom wordt NUTS-discovery ingezet om het mCSD op basis van het URA vast te stellen.
+
 #### 📖 Matrix User Discovery via mCSD
 
 - **FHIR mCSD Resource Gebruik**:
   - Zorgverleners met hun Matrix homeserver informatie worden gepubliceerd in mCSD records.
   - Matrix homeserver adressen worden opgeslagen als Endpoints van de PractitionerRole.
   - Applicaties gebruiken mCSD om zorgverleners en services op te zoeken op functie of locatie.
-  - Tijdens identificatie en onboarding wordt de mCSD resource URL als 3PID aan het Matrix-gebruikersaccount gekoppeld.
+  - Tijdens identificatie en onboarding worden het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs aan het Matrix-gebruikersaccount gekoppeld.
 
 **Belangrijke FHIR Resources voor mCSD Integratie:**
 
@@ -390,16 +428,17 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
 
 - **Netwerkcommunicatie Flow voor Zorgverleners**:
   1. Zorgverlener logt in via de IdP van hun zorgaanbieder
-  2. Applicatie zoekt naar de zorgverlener in mCSD
-  3. mCSD verschaft de homeserver en identiteitsinformatie
-  4. Twee scenario's:
+  2. Op basis van het URA-nummer van de zorgaanbieder wordt het mCSD endpoint bepaald
+  3. Applicatie zoekt naar de zorgverlener in mCSD
+  4. mCSD verschaft de homeserver en identiteitsinformatie
+  5. Twee scenario's:
      - **Optie 1**: Homeserver behoort tot de huidige leverancier
        - Gebruikersdata is al gesynchroniseerd of kan worden opgehaald via standaard integratie (Application Service, aka AS)
      - **Optie 2**: Homeserver behoort tot een andere leverancier
        - Gebruikersdata moet worden opgevraagd tijdens de sessie via client-server API
-  5. Bij nieuwe Practitioner accounts:
-     - Configureer de mCSD resource URL als 3PID via de Matrix Identity Server API
-     - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie
+  6. Bij nieuwe Practitioner accounts:
+     - Configureer het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs via de Matrix Identity Server API
+     - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie.
 
 #### 📚 Data Model Uitbreidingen
 
@@ -417,7 +456,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   2. Huidige leverancier observeert de wijziging en voor gebruikers die actief waren in hun homeserver maar nu elders toegewezen zijn:
      - Nodigt de nieuwe identiteit uit voor alle relevante rooms
      - Deactiveert het huidige account met Matrix [account deactivation API](https://spec.matrix.org/v1.14/client-server-api/#post_matrixclientv3accountdeactivate)
-  3. 3PIDs worden gebruikt om de identiteit te verifiëren tijdens de migratie, waarbij de mCSD resource URL als persistente identifier dient
+  3. 3PIDs (UZI-nummer, URA-nummer en rolcode) worden gebruikt om de identiteit te verifiëren tijdens de migratie, waarbij de combinatie van deze identifiers zorgt voor unieke identificatie van zorgverleners en hun specifieke rollen.
 
 ---
 
