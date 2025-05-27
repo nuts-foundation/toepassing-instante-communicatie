@@ -1,0 +1,55 @@
+@startuml Healthcare Provider Authentication Flow
+
+actor "Zorgverlener" as User
+participant "Identity Provider\n(IdP)" as IdP
+participant "Zorgsysteem" as System
+participant "NUTS Discovery" as NUTS
+participant "mCSD Service" as mCSD
+participant "Matrix\nIdentity Server" as MatrixIS
+participant "Matrix\nHomeserver" as MatrixHS
+
+title Healthcare Provider Matrix ID Resolution Process
+
+User -> IdP: Authenticatie
+IdP -> System: Authenticatieresultaat met\nUZI-nummer, URA-nummer, rolcode
+
+System -> NUTS: Zoek mCSD adres voor URA-nummer
+NUTS --> System: mCSD endpoint URL
+
+note right of System
+  Systeem bepaalt of de mCSD
+  door huidige leverancier wordt beheerd
+end note
+
+alt mCSD bij externe leverancier
+  System -> mCSD: Zoek resource op met UZI en URA
+
+  alt Zorgverlener heeft matrix-id
+    mCSD --> System: Matrix ID gevonden
+    System -> MatrixHS: Gebruik gevonden Matrix ID
+  else Geen matrix-id gevonden
+    mCSD --> System: Geen Matrix ID beschikbaar
+    System --> User: Proces stopt, verwijs naar juiste omgeving
+  end
+
+else mCSD bij eigen leverancier
+  System -> mCSD: Zoek resource op met UZI en URA
+
+  alt Zorgverlener heeft matrix-id
+    mCSD --> System: Matrix ID gevonden
+    System -> MatrixHS: Gebruik gevonden Matrix ID
+  else Geen matrix-id gevonden
+    mCSD --> System: Geen Matrix ID beschikbaar
+    System -> MatrixIS: Maak Matrix ID aan
+    MatrixIS -> MatrixHS: Creëer nieuwe gebruiker
+    MatrixIS -> MatrixIS: Voeg 3PIDs toe (UZI, URA, rolcode)
+    MatrixIS --> System: Nieuwe Matrix ID
+    System -> mCSD: Update resource met Matrix ID
+  end
+end
+
+alt Succesvolle Matrix ID resolutie
+  System --> User: Toegang tot Matrix communicatie
+end
+
+@enduml
