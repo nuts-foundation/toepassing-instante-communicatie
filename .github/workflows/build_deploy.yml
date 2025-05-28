@@ -40,6 +40,11 @@ jobs:
           message: "Render PlantUML files"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Convert Markdown to HTML
+        uses: natescherer/markdown-to-html-with-github-style-action@v1
+        with:
+          path: specificatie.md
+          outputpath: .
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
