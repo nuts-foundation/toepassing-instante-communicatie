@@ -44,12 +44,12 @@ jobs:
         uses: natescherer/markdown-to-html-with-github-style-action@v1
         with:
           path: specificatie.md
-          outputpath: .
+          outputpath: out
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
-          path: '.'
+          path: './out/'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
