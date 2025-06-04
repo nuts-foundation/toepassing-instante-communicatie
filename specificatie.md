@@ -338,20 +338,45 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
 #### 📖 Matrix User Discovery via mCSD
 
 - **FHIR mCSD Resource Gebruik**:
-  - Zorgverleners met hun Matrix homeserver informatie worden gepubliceerd in mCSD records.
-  - Matrix homeserver adressen worden opgeslagen als Endpoints van de PractitionerRole.
+  - Zorgverleners met hun Matrix contact informatie worden gepubliceerd in mCSD records.
+  - Matrix adressen worden opgeslagen in de telecom array van Practitioner, Patient en RelatedPerson resources.
   - Applicaties gebruiken mCSD om zorgverleners en services op te zoeken op functie of locatie.
   - Tijdens identificatie en onboarding worden het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs aan het Matrix-gebruikersaccount gekoppeld.
 
 **Belangrijke FHIR Resources voor mCSD Integratie:**
 
-1. **Organization** - Zorgaanbieder organisaties
+   1. **Organization** - Zorgaanbieder organisaties
    ```json
    {
      "resourceType": "Organization",
      "id": "07d91b7d-eb06-47ef-b077-28e0d274c161",
      "name": "Hospital A",
-     "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type", "code": "prov"}]}]
+     "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type", "code": "prov"}]}],
+     "contact": [
+       {
+         "purpose": {
+           "coding": [
+             {
+               "system": "http://terminology.hl7.org/CodeSystem/contactentity-type",
+               "code": "ADMIN"
+             }
+           ]
+         },
+         "telecom": [
+           {
+             "system": "other",
+             "value": "matrix.hospital-a.nl",
+             "use": "work",
+             "extension": [
+               {
+                 "url": "http://hl7.org/fhir/StructureDefinition/contactpoint-purpose",
+                 "valueString": "matrix-homeserver"
+               }
+             ]
+           }
+         ]
+       }
+     ]
    }
    ```
 
@@ -361,7 +386,25 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
      "resourceType": "Practitioner",
      "id": "6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594",
      "identifier": [{"system": "http://fhir.nl/fhir/NamingSystem/uzi-nr-pers", "value": "123456789"}],
-     "name": [{"family": "Janssen", "given": ["Dr. H."]}]
+     "name": [{"family": "Janssen", "given": ["Dr. H."]}],
+     "telecom": [
+       {
+         "system": "email",
+         "value": "dr.janssen@hospital-a.nl",
+         "use": "work"
+       },
+       {
+         "system": "other",
+         "value": "@dr.janssen:matrix.hospital-a.nl",
+         "use": "work",
+         "extension": [
+           {
+             "url": "http://hl7.org/fhir/StructureDefinition/contactpoint-purpose",
+             "valueString": "matrix-messaging"
+           }
+         ]
+       }
+     ]
    }
    ```
 
@@ -372,46 +415,99 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
      "id": "df54b889-d6f5-4d89-993f-2af7950ea83b",
      "practitioner": {"reference": "Practitioner/6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594"},
      "organization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
-     "code": [{"coding": [{"system": "http://snomed.info/sct", "code": "158965000", "display": "Medical practitioner"}]}],
-     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
+     "code": [{"coding": [{"system": "http://snomed.info/sct", "code": "158965000", "display": "Medical practitioner"}]}]
    }
    ```
 
-4. **Endpoint** - Bevat Matrix homeserver verbindingsdetails
+4. **Patient** - Cliënten met optionele Matrix toegang
    ```json
    {
-     "resourceType": "Endpoint",
-     "id": "591abf72-ea3b-4cb3-a313-ffe5723292d6",
-     "status": "active",
-     "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"},
-     "name": "Matrix Homeserver for Hospital A",
-     "address": "https://matrix.hospital-a.nl"
+     "resourceType": "Patient",
+     "id": "patient-123",
+     "identifier": [{"system": "http://fhir.nl/fhir/NamingSystem/pseudo-bsn", "value": "87479412034"}],
+     "name": [{"family": "De Vries", "given": ["Jan"]}],
+     "telecom": [
+       {
+         "system": "email",
+         "value": "jan.devries@example.com",
+         "use": "home"
+       },
+       {
+         "system": "other",
+         "value": "@jan.devries:matrix.example.com",
+         "use": "home",
+         "extension": [
+           {
+             "url": "http://hl7.org/fhir/StructureDefinition/contactpoint-purpose",
+             "valueString": "matrix-messaging"
+           }
+         ]
+       }
+     ]
    }
    ```
 
+5. **RelatedPerson** - Mantelzorgers en familieleden
+   ```json
+   {
+     "resourceType": "RelatedPerson",
+     "id": "related-person-456",
+     "patient": {"reference": "Patient/patient-123"},
+     "relationship": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode", "code": "CHILD"}]}],
+     "name": [{"family": "De Vries", "given": ["Maria"]}],
+     "telecom": [
+       {
+         "system": "email",
+         "value": "maria.devries@example.com",
+         "use": "home"
+       },
+       {
+         "system": "other",
+         "value": "@maria.devries:matrix.example.com",
+         "use": "home",
+         "extension": [
+           {
+             "url": "http://hl7.org/fhir/StructureDefinition/contactpoint-purpose",
+             "valueString": "matrix-messaging"
+           }
+         ]
+       }
+     ]
+   }
+   ```
 
-5. **HealthcareService** - Services aangeboden door organisaties
+6. **HealthcareService** - Services aangeboden door organisaties
    ```json
    {
      "resourceType": "HealthcareService",
      "id": "83f74cda-a81b-4598-a9d0-bab02d387caf",
      "providedBy": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
-     "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/service-category", "code": "1"}]}],
-     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
+     "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/service-category", "code": "1"}]}]
    }
    ```
 
-6. **Location** - Fysieke locaties waar services worden aangeboden
+7. **Location** - Fysieke locaties waar services worden aangeboden
    ```json
    {
      "resourceType": "Location",
      "id": "351027f8-febc-4698-a6c7-2b3d3d456fab",
      "name": "Hospital A Main Building",
-     "managingOrganization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
-     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
+     "managingOrganization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"}
    }
    ```
 
+**ContactPoint Extensions voor Matrix:**
+
+Voor het correct identificeren van Matrix-gerelateerde contactinformatie worden de volgende extension waarden gebruikt:
+
+- **matrix-messaging**: Voor individuele Matrix user IDs (@gebruiker:homeserver.nl)
+- **matrix-homeserver**: Voor homeserver adressen (homeserver.nl) op organisatie niveau
+
+**Lookup Proces:**
+
+1. **Directe gebruiker lookup**: Zoek in mCSD naar Practitioner/Patient/RelatedPerson resources met telecom entries die matrix-messaging extensions bevatten
+2. **Homeserver identificatie**: Bepaal de homeserver via de Organization resource of extraheer uit de Matrix user ID
+3. **Cross-referencing**: Gebruik UZI/URA nummers als 3PIDs voor identiteitsverificatie en reverse lookup
 #### 🔄 Zorgverlener Lokalisatieproces
 
 - **Netwerkcommunicatie Flow voor Zorgverleners**:
