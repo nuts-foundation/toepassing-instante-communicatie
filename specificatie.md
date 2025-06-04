@@ -174,36 +174,55 @@ Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen versc
   - Mogelijkheden voor gestructureerde, gerichte gesprekken met verzender/ontvanger logica.
 
 #### 🔐 Power Levels & Toestemmingen
-
+De space representeert het het care team, alle personen betrokken bij een client. Binnen de space kunnen rooms worden aangemaakt, deze representeren specifieke gesprekken met een subset van de leden van de space.
 Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te beheren. Voor zorgcommunicatie stellen we de volgende power level mapping voor:
 
 **Power Level Structuur:**
 - **100 (Administrator)**: Care Team Lead/Hoofdbehandelaar
-  - Kan elke gebruiker uitnodigen/verwijderen
-  - Kan room instellingen en power levels wijzigen
-  - Kan child rooms binnen de space aanmaken/verwijderen
+  - Kan een space aanmaken, verwijderen en aanpassen
+  - Kan elke gebruiker uitnodigen/verwijderen voor de space
+  - Kan space instellingen en power levels wijzigen
 
-- **75 (Moderator)**: Senior Care Team Leden
-  - Kan zorgverleners uit hun organisatie uitnodigen
-  - Kan nieuwe gespreksrooms aanmaken
-  - Kan discussies modereren en belangrijke berichten pinnen
+- **75 (Zorgverlener)**: Erkende Zorgprofessionals
+  - Kan andere gebruikers uitnodigen voor de space
+  - Kan conversaties starten door een child room in de space aan te maken
+  - Kan alle leden in de space uitnodigen voor een room waar hij in deelneemt.
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de zorgverlener deelneemt
 
-- **50 (Zorgverlener)**: Erkende Zorgprofessionals
-  - Kan berichten versturen en deelnemen aan discussies
-  - Kan cliënten en gerelateerde personen uitnodigen (met beperkingen)
-  - Kan reageren op berichten en threads aanmaken
+- **50 (Gerelateerde Persoon)**: Mantelzorgers, case managers
+  - Kan geen andere gebruikers uitnodigen voor de space
+  - Kan conversaties starten door een child room in de space aan te maken
+  - Kan alle leden in de space uitnodigen voor een room die hij aanmaakt.
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de gerelateerde persoon deelneemt
 
-- **25 (Gerelateerde Persoon)**: Mantelzorgers, case managers
-  - Kan berichten versturen in aangewezen rooms
-  - Kan alle gesprekken bekijken maar beperkte aanmaakrechten
-  - Kan geen andere gebruikers uitnodigen
+- **25 (Cliënt)**: Wanneer cliënten direct deelnemen
+  - Kan geen andere gebruikers uitnodigen voor de space
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de client deelneemt
 
-- **10 (Cliënt)**: Wanneer cliënten direct deelnemen
-  - Kan berichten versturen in spaces waar ze direct betrokken zijn
-  - Kan geen anderen uitnodigen of room instellingen wijzigen
-  - Alleen-lezen toegang tot zorgcoördinatie discussies
+**Space-Level Toestemming Matrix (Care Team):**
+```json
+ {
+  "events": {
+    "m.space.name": 100,
+    "m.space.topic": 100,
+    "m.room.member": 75,
+    "m.space.child": 50
+  },
+  "events_default": 100,
+  "invite": 75,
+  "kick": 100,
+  "ban": 100,
+  "redact": 100,
+  "state_default": 100,
+  "users_default": 25,
+  "notifications": {
+    "room": 75
+  }
+}
 
-**Toestemming Matrix Voorbeeld:**
+```
+
+**Room-Level Toestemming Matrix Template (Gesprekken):**
 ```json
 {
   "events": {
@@ -211,9 +230,9 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
     "m.room.name": 75,
     "m.room.topic": 75,
     "m.room.member": 50,
-    "m.space.child": 75
+    "m.reaction": 25
   },
-  "events_default": 50,
+  "events_default": 75,
   "invite": 50,
   "kick": 75,
   "ban": 100,
@@ -235,10 +254,13 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 #### 🩺 Cliënt Associatie
 
 - **Cliëntidentiteit wordt alleen gecommuniceerd in uitnodigingsberichten** bij het uitnodigen van gebruikers van andere homeservers.
-- De uitnodiging bevat een referentie naar de cliënt (bijv. BSN of pseudoniem), waardoor het ontvangende systeem de space kan associëren met de juiste cliënt in hun systeem.
 - **Room metadata bevat geen cliëntinformatie** om datalekkage te voorkomen.
 - Eenmaal uitgenodigd, is het ontvangende systeem verantwoordelijk voor het lokaal onderhouden van de cliënt-space associatie.
 - Gebruik `m.space.child` en `m.space.parent` events om een top level space en child rooms voor elk gesprek aan te maken, zonder cliëntdata bloot te stellen in de metadata.
+- **Uitnodigingscontext Uitbreiding:** Aan de content van uitnodigingsberichten is het `nl-ta-chat.invite.context` veld toegevoegd. Dit element bevat:
+  - **version**: Een versienummer voor de contextstructuur (momenteel 1.0)
+  - **room.subject**: Een FHIR resource van het subject van de room, waarin de cliëntidentificatie wordt meegegeven  Het `room.subject` veld bevat een FHIR resource (bijvoorbeeld een Patient resource) waarmee het ontvangende systeem de uitnodiging kan associëren met de juiste cliënt in hun eigen systeem. Dit zorgt ervoor dat zorgverleners van verschillende organisaties context hebben over welke cliënt het betreft wanneer ze worden uitgenodigd voor een care team discussie.
+  - n.b. In deze versie is er bewust voor gekozen de _reden_ of _aandoening_ niet aan de context toe te voegen. Mogelijk in use-cases rond Shared Care Planning is een dergelijk veld van toepassing.
 
 **Voorbeeld Matrix Invite Event (Standaard JSON):**
 ```json
@@ -248,7 +270,7 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
   "content": {
     "membership": "invite",
     "reason": "Invited to care team for patient consultation",
-    "nl-ta-chat.invite.context" {
+    "nl-ta-chat.invite.context": {
       "version" : 1.0,
       "room.subject": {
         "resourceType" : "Patient",
@@ -444,7 +466,7 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
 
 
 ## Open points that need input
-- [ ] The connection type of the endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), should it be something custom, ommitted or something new: 
+- [ ] The connection type of the endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), should it be something custom, ommitted or something new:
 ```
 "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
 ```
