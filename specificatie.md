@@ -465,8 +465,8 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
 ![Healthcare Provider Authentication Flow](diagrams/images/Healthcare%20Provider%20Authentication%20Flow.svg)
 
 
-## Open points that need input
-- [ ] The connection type of the endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), should it be something custom, ommitted or something new:
+## Openstaande punten die input nodig hebben
+- [ ] Het verbindingstype van het endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), moet een eigen waarde krijgen of op een bestaande waarde in de valueset gemapped worden:
 ```
 "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
 ```
