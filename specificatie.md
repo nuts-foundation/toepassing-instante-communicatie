@@ -80,9 +80,57 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
 #### ✅ Identiteit Mapping
 
 - **Matrix User IDs** moeten gekoppeld worden aan bestaande zorgidentiteiten:
-  - **Zorgverleners**: Gebruik SAML authenticatie via Identity Provider (IdP) van zorgaanbieder.
-  - **RelatedPersons (bijv. mantelzorgers)**: Gebruik email + wachtwoord + 2FA via zorgplatform.
-  - **Cliënten**: Optioneel onboarded; kunnen lokale Matrix accounts hebben gebaseerd op email.
+  - **Zorgverleners**: Gebruik OIDC authenticatie via Identity Provider (IdP) van zorgaanbieder. mCSD wordt gebruikt om de mogelijke Matrix account van de Zorgverlener te lokaliseren op basis van hun identiteit in het zorgsysteem. Het UZI-nummer, URA-nummer en rolcode(s) worden gebruikt als 3PIDs voor identificatie.
+  - **RelatedPersons (bijv. mantelzorgers)**: Gebruik email + wachtwoord + 2FA via zorgplatform. Het email-adres wordt gebruikt als 3PID voor identificatie.
+  - **Cliënten**: Optioneel onboarded; kunnen lokale Matrix accounts hebben gebaseerd op email. Het email-adres wordt gebruikt als 3PID voor identificatie.
+
+#### 🔄 3PID Identificatie voor Zorgverleners
+
+Voor zorgverleners (Practitioners) is het essentieel dat vanuit hun Matrix ID de bijbehorende mCSD FHIR resource URL kan worden achterhaald. Dit is nodig om het CareTeam correct te kunnen vullen met de juiste FHIR resource referenties voor implementaties die met FHIR werken.
+
+Zorgverleners worden daarom in Matrix geïdentificeerd met zowel hun Matrix ID als hun UZI-nummer, URA-nummer en rolcode als 3PIDs (Third-Party IDs):
+
+- **Reverse-lookup functionaliteit**: Het ontvangende systeem moet de zorgidentiteit van de Practitioner kunnen terugzoeken om de mCSD FHIR resource URL te vinden
+- **FHIR resource koppeling**: De UZI, URA en rolcode worden toegevoegd als 3PIDs in het Matrix gebruikersprofiel, waardoor de bijbehorende Practitioner of PractitionerRole resource URL kan worden achterhaald
+- **Consistente identiteit**: Het 3PID mechanisme zorgt voor een betrouwbare koppeling tussen Matrix-identiteit en zorgsysteemidentiteit
+- **Cross-systeem interoperabiliteit**: Deze aanpak garandeert dat de identiteit consistent blijft tussen verschillende zorgsystemen
+
+**Identificatie-elementen:**
+- **UZI-nummer**: Persoonlijke identifier voor de zorgverlener
+- **URA-nummer**: Identificeert de zorgorganisatie waar de zorgverlener werkzaam is
+- **Rolcode**: Geeft aan welke (beroeps-)rol de zorgverlener vervult bij de zorgaanbieder (conform FHIR PractitionerRole)
+
+Een zorgverlener kan meerdere rollen hebben bij dezelfde of verschillende organisaties, wat resulteert in meerdere PractitionerRole resources en bijbehorende 3PID combinaties.
+
+**Voorbeeld van 3PID toevoeging:**
+```json
+{
+  "threepids": [
+    {
+      "medium": "uzi_nr",
+      "address": "123456789",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "ura_nr",
+      "address": "00000001",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "role_code",
+      "address": "158965000",
+      "validated_at": 1674123456789
+    },
+    {
+      "medium": "email",
+      "address": "dr.janssen@hospital-a.nl",
+      "validated_at": 1674123456789
+    }
+  ]
+}
+```
+
+Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen verschillende zorgsystemen die via Matrix communiceren, waarbij gebruik wordt gemaakt van de gestandaardiseerde zorgsector identifiers inclusief de specifieke rol die de zorgverlener vervult.
 
 #### 🏠 Homeserver Toewijzing
 
@@ -97,9 +145,15 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
 #### ✅ IdentityServer API
 
 - Implementeer een **Matrix IdentityServer** die ondersteunt:
-  - Voor **Zorgverleners** is de identity server gebonden aan de IdP van de zorgaanbieder (`IdP + userID`), alternatief:
-    - Gebruik Generieke Functie Adressering om zorgverleners te lokaliseren.
-    - Gebruik `UZI + method` (Dezi) als identificatiemechanisme.
+  - Voor **Zorgverleners**: Na succesvolle authenticatie is het UZI-nummer en URA-nummer, en mogelijk de rolcode bekend. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is:
+    1. Zoek op waar de mCSD van het URA-nummer staat (nu is dat met NUTS discovery)
+    2. Als de gebruiker bij een ander mCSD staat:
+       - Zoek de resource op in dat externe mCSD
+       - Als die daar geen matrix-id heeft stopt het proces daar
+       - Als die wel bestaat, gebruik die gevonden matrix-id
+    3. Als de mCSD omgeving de eigen is:
+       - Kijk in de eigen mCSD database of deze al een matrix-account heeft
+       - Zo niet, maak dan een matrix-id aan met als 3PID de UZI, URA en eventueel rolcode
   - Voor **RelatedPersons** (bijv. mantelzorgers) en **Cliënten** worden identiteiten verschaft door het zorgplatform.
   - Een enkele IdentityServer per homeserver (vereist door Matrix spec).
 
@@ -120,36 +174,55 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
   - Mogelijkheden voor gestructureerde, gerichte gesprekken met verzender/ontvanger logica.
 
 #### 🔐 Power Levels & Toestemmingen
-
+De space representeert het het care team, alle personen betrokken bij een client. Binnen de space kunnen rooms worden aangemaakt, deze representeren specifieke gesprekken met een subset van de leden van de space.
 Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te beheren. Voor zorgcommunicatie stellen we de volgende power level mapping voor:
 
 **Power Level Structuur:**
 - **100 (Administrator)**: Care Team Lead/Hoofdbehandelaar
-  - Kan elke gebruiker uitnodigen/verwijderen
-  - Kan room instellingen en power levels wijzigen
-  - Kan child rooms binnen de space aanmaken/verwijderen
+  - Kan een space aanmaken, verwijderen en aanpassen
+  - Kan elke gebruiker uitnodigen/verwijderen voor de space
+  - Kan space instellingen en power levels wijzigen
 
-- **75 (Moderator)**: Senior Care Team Leden
-  - Kan zorgverleners uit hun organisatie uitnodigen
-  - Kan nieuwe gespreksrooms aanmaken
-  - Kan discussies modereren en belangrijke berichten pinnen
+- **75 (Zorgverlener)**: Erkende Zorgprofessionals
+  - Kan andere gebruikers uitnodigen voor de space
+  - Kan conversaties starten door een child room in de space aan te maken
+  - Kan alle leden in de space uitnodigen voor een room waar hij in deelneemt.
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de zorgverlener deelneemt
 
-- **50 (Zorgverlener)**: Erkende Zorgprofessionals
-  - Kan berichten versturen en deelnemen aan discussies
-  - Kan cliënten en gerelateerde personen uitnodigen (met beperkingen)
-  - Kan reageren op berichten en threads aanmaken
+- **50 (Gerelateerde Persoon)**: Mantelzorgers, case managers
+  - Kan geen andere gebruikers uitnodigen voor de space
+  - Kan conversaties starten door een child room in de space aan te maken
+  - Kan alle leden in de space uitnodigen voor een room die hij aanmaakt.
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de gerelateerde persoon deelneemt
 
-- **25 (Gerelateerde Persoon)**: Mantelzorgers, case managers
-  - Kan berichten versturen in aangewezen rooms
-  - Kan alle gesprekken bekijken maar beperkte aanmaakrechten
-  - Kan geen andere gebruikers uitnodigen
+- **25 (Cliënt)**: Wanneer cliënten direct deelnemen
+  - Kan geen andere gebruikers uitnodigen voor de space
+  - Kan reageren op berichten en nieuwe berichten plaatsen in de room waarin de client deelneemt
 
-- **10 (Cliënt)**: Wanneer cliënten direct deelnemen
-  - Kan berichten versturen in spaces waar ze direct betrokken zijn
-  - Kan geen anderen uitnodigen of room instellingen wijzigen
-  - Alleen-lezen toegang tot zorgcoördinatie discussies
+**Space-Level Toestemming Matrix (Care Team):**
+```json
+ {
+  "events": {
+    "m.space.name": 100,
+    "m.space.topic": 100,
+    "m.room.member": 75,
+    "m.space.child": 50
+  },
+  "events_default": 100,
+  "invite": 75,
+  "kick": 100,
+  "ban": 100,
+  "redact": 100,
+  "state_default": 100,
+  "users_default": 25,
+  "notifications": {
+    "room": 75
+  }
+}
 
-**Toestemming Matrix Voorbeeld:**
+```
+
+**Room-Level Toestemming Matrix Template (Gesprekken):**
 ```json
 {
   "events": {
@@ -157,9 +230,9 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
     "m.room.name": 75,
     "m.room.topic": 75,
     "m.room.member": 50,
-    "m.space.child": 75
+    "m.reaction": 25
   },
-  "events_default": 50,
+  "events_default": 75,
   "invite": 50,
   "kick": 75,
   "ban": 100,
@@ -181,10 +254,13 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 #### 🩺 Cliënt Associatie
 
 - **Cliëntidentiteit wordt alleen gecommuniceerd in uitnodigingsberichten** bij het uitnodigen van gebruikers van andere homeservers.
-- De uitnodiging bevat een referentie naar de cliënt (bijv. BSN of pseudoniem), waardoor het ontvangende systeem de space kan associëren met de juiste cliënt in hun systeem.
 - **Room metadata bevat geen cliëntinformatie** om datalekkage te voorkomen.
 - Eenmaal uitgenodigd, is het ontvangende systeem verantwoordelijk voor het lokaal onderhouden van de cliënt-space associatie.
 - Gebruik `m.space.child` en `m.space.parent` events om een top level space en child rooms voor elk gesprek aan te maken, zonder cliëntdata bloot te stellen in de metadata.
+- **Uitnodigingscontext Uitbreiding:** Aan de content van uitnodigingsberichten is het `nl-ta-chat.invite.context` veld toegevoegd. Dit element bevat:
+  - **version**: Een versienummer voor de contextstructuur (momenteel 1.0)
+  - **room.subject**: Een FHIR resource van het subject van de room, waarin de cliëntidentificatie wordt meegegeven  Het `room.subject` veld bevat een FHIR resource (bijvoorbeeld een Patient resource) waarmee het ontvangende systeem de uitnodiging kan associëren met de juiste cliënt in hun eigen systeem. Dit zorgt ervoor dat zorgverleners van verschillende organisaties context hebben over welke cliënt het betreft wanneer ze worden uitgenodigd voor een care team discussie.
+  - n.b. In deze versie is er bewust voor gekozen de _reden_ of _aandoening_ niet aan de context toe te voegen. Mogelijk in use-cases rond Shared Care Planning is een dergelijk veld van toepassing.
 
 **Voorbeeld Matrix Invite Event (Standaard JSON):**
 ```json
@@ -194,13 +270,15 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
   "content": {
     "membership": "invite",
     "reason": "Invited to care team for patient consultation",
-    "care.patient.reference": {
-      "identifier": "123456789",
-      "system": "http://fhir.nl/fhir/NamingSystem/bsn"
-    },
-    "care.context": {
-      "care_team_type": "multidisciplinary",
-      "subject": "Medication review discussion"
+    "nl-ta-chat.invite.context": {
+      "version" : 1.0,
+      "room.subject": {
+        "resourceType" : "Patient",
+        "identifier" : [{
+          "value": "87479412034",
+          "system": "http://fhir.nl/fhir/NamingSystem/pseudo-bsn"
+        }]
+      }
     }
   },
   "sender": "@nurse:hospital-a.nl",
@@ -209,41 +287,6 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 }
 ```
 
-**Voorbeeld Matrix Invite Event (JSON-LD):**
-```json
-{
-  "@context": {
-    "@base": "https://matrix.org/schemas/",
-    "matrix": "https://matrix.org/schemas/",
-    "fhir": "http://hl7.org/fhir/",
-    "care": "https://healthcare-communication.org/schemas/",
-    "xsd": "http://www.w3.org/2001/XMLSchema#"
-  },
-  "@type": "matrix:RoomMemberEvent",
-  "matrix:type": "m.room.member",
-  "matrix:stateKey": "@practitioner:hospital-b.nl",
-  "matrix:content": {
-    "matrix:membership": "invite",
-    "matrix:reason": "Invited to care team for patient consultation",
-    "care:patientReference": {
-      "@type": "fhir:Identifier",
-      "fhir:value": "123456789",
-      "fhir:system": "http://fhir.nl/fhir/NamingSystem/bsn"
-    },
-    "care:context": {
-      "@type": "care:CareTeamContext",
-      "care:careTeamType": "multidisciplinary",
-      "care:subject": "Medication review discussion"
-    }
-  },
-  "matrix:sender": "@nurse:hospital-a.nl",
-  "matrix:originServerTs": {
-    "@type": "xsd:dateTime",
-    "@value": "2023-01-19T10:57:36.789Z"
-  },
-  "matrix:eventId": "$example_event_id"
-}
-```
 
 Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
 
@@ -263,11 +306,21 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
 
 #### 📨 Gebruiker Uitnodigingsmethoden
 
-- Uitnodigen via:
-  - **Homeserver ID** (bijv. `@user:homeserver.nl`)
-  - **Externe identifier + method** (bijv. `uzi:123456789`)
-- Zorgverleners worden gelokaliseerd door Generieke Functie Adressering via mCSD en automatisch onboarded.
-- RelatedPersons en cliënten ontvangen **email uitnodigingen**.
+**Zorgverleners:**
+Zorgverleners loggen in met de IdP van hun zorgorganisatie. Na succesvolle authenticatie is het UZI-nummer en URA-nummer, en mogelijk de rolcode bekend. Op het moment dat ze willen gaan communiceren met de matrix omgeving, wordt de volgende logica uitgevoerd om ze te onboarden:
+
+1. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is
+2. Wordt bepaald of de mCSD van de zorgaanbieder wordt beheerd door de huidige leverancier
+3. Afhankelijk van wie de mCSD beheert:
+   - Indien de mCSD niet door de huidige leverancier wordt beheerd:
+     - Wordt door middel van mCSD de zorgverlener opgezocht
+     - Indien de account niet bestaat, kan de zorgverlener enkel naar de omgeving van de zorgaanbieder worden verwezen om een matrix identiteit te krijgen
+   - Indien de mCSD door de huidige leverancier wordt beheerd kan automatisch een account worden aangemaakt
+
+*Vooralsnog gaan we er van uit dat de mCSD door dezelfde leverancier wordt geleverd als de homeserver.*
+
+**RelatedPersons en Cliënten:**
+RelatedPersons en cliënten ontvangen email uitnodigingen.
 
 ---
 
@@ -280,12 +333,15 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   - Elke zorgaanbieder selecteert één leverancier om hun mCSD endpoint te implementeren.
   - Het mCSD endpoint functioneert als een adresboek voor elke zorgaanbieder.
 
+Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom wordt NUTS-discovery ingezet om het mCSD op basis van het URA vast te stellen.
+
 #### 📖 Matrix User Discovery via mCSD
 
 - **FHIR mCSD Resource Gebruik**:
   - Zorgverleners met hun Matrix homeserver informatie worden gepubliceerd in mCSD records.
   - Matrix homeserver adressen worden opgeslagen als Endpoints van de PractitionerRole.
   - Applicaties gebruiken mCSD om zorgverleners en services op te zoeken op functie of locatie.
+  - Tijdens identificatie en onboarding worden het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs aan het Matrix-gebruikersaccount gekoppeld.
 
 **Belangrijke FHIR Resources voor mCSD Integratie:**
 
@@ -293,7 +349,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
    ```json
    {
      "resourceType": "Organization",
-     "id": "hospital-a",
+     "id": "07d91b7d-eb06-47ef-b077-28e0d274c161",
      "name": "Hospital A",
      "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type", "code": "prov"}]}]
    }
@@ -303,7 +359,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
    ```json
    {
      "resourceType": "Practitioner",
-     "id": "practitioner-123",
+     "id": "6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594",
      "identifier": [{"system": "http://fhir.nl/fhir/NamingSystem/uzi-nr-pers", "value": "123456789"}],
      "name": [{"family": "Janssen", "given": ["Dr. H."]}]
    }
@@ -313,11 +369,11 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
    ```json
    {
      "resourceType": "PractitionerRole",
-     "id": "role-123",
-     "practitioner": {"reference": "Practitioner/practitioner-123"},
-     "organization": {"reference": "Organization/hospital-a"},
+     "id": "df54b889-d6f5-4d89-993f-2af7950ea83b",
+     "practitioner": {"reference": "Practitioner/6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594"},
+     "organization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "code": [{"coding": [{"system": "http://snomed.info/sct", "code": "158965000", "display": "Medical practitioner"}]}],
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -325,23 +381,23 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
    ```json
    {
      "resourceType": "Endpoint",
-     "id": "matrix-homeserver-hospital-a",
+     "id": "591abf72-ea3b-4cb3-a313-ffe5723292d6",
      "status": "active",
      "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"},
      "name": "Matrix Homeserver for Hospital A",
-     "address": "https://matrix.hospital-a.nl",
-     "header": ["X-Matrix-UserID: @{practitioner.id}:hospital-a.nl"]
+     "address": "https://matrix.hospital-a.nl"
    }
    ```
+
 
 5. **HealthcareService** - Services aangeboden door organisaties
    ```json
    {
      "resourceType": "HealthcareService",
-     "id": "service-123",
-     "providedBy": {"reference": "Organization/hospital-a"},
+     "id": "83f74cda-a81b-4598-a9d0-bab02d387caf",
+     "providedBy": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/service-category", "code": "1"}]}],
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -349,10 +405,10 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
    ```json
    {
      "resourceType": "Location",
-     "id": "location-123",
+     "id": "351027f8-febc-4698-a6c7-2b3d3d456fab",
      "name": "Hospital A Main Building",
-     "managingOrganization": {"reference": "Organization/hospital-a"},
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "managingOrganization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -360,13 +416,17 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
 
 - **Netwerkcommunicatie Flow voor Zorgverleners**:
   1. Zorgverlener logt in via de IdP van hun zorgaanbieder
-  2. Applicatie zoekt naar de zorgverlener in mCSD
-  3. mCSD verschaft de homeserver en identiteitsinformatie
-  4. Twee scenario's:
+  2. Op basis van het URA-nummer van de zorgaanbieder wordt het mCSD endpoint bepaald
+  3. Applicatie zoekt naar de zorgverlener in mCSD
+  4. mCSD verschaft de homeserver en identiteitsinformatie
+  5. Twee scenario's:
      - **Optie 1**: Homeserver behoort tot de huidige leverancier
        - Gebruikersdata is al gesynchroniseerd of kan worden opgehaald via standaard integratie (Application Service, aka AS)
      - **Optie 2**: Homeserver behoort tot een andere leverancier
        - Gebruikersdata moet worden opgevraagd tijdens de sessie via client-server API
+  6. Bij nieuwe Practitioner accounts:
+     - Configureer het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs via de Matrix Identity Server API
+     - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie.
 
 #### 📚 Data Model Uitbreidingen
 
@@ -384,6 +444,7 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
   2. Huidige leverancier observeert de wijziging en voor gebruikers die actief waren in hun homeserver maar nu elders toegewezen zijn:
      - Nodigt de nieuwe identiteit uit voor alle relevante rooms
      - Deactiveert het huidige account met Matrix [account deactivation API](https://spec.matrix.org/v1.14/client-server-api/#post_matrixclientv3accountdeactivate)
+  3. 3PIDs (UZI-nummer, URA-nummer en rolcode) worden gebruikt om de identiteit te verifiëren tijdens de migratie, waarbij de combinatie van deze identifiers zorgt voor unieke identificatie van zorgverleners en hun specifieke rollen.
 
 ---
 
@@ -394,8 +455,18 @@ Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het u
 - **Synapse** of een andere Matrix homeserver als kern.
 - Custom **IdentityServer** voor zorgplatforms:
   - Generieke Functie Adressering en mCSD.
-  - Authenticeer gebruikers met een zorgaanbieder IdP.
-    - Authenticeer gebruikers met "UZI" + "method", zoals Dezi
-  - Authenticeer de gebruikers met hun zorgplatform account.
+  - Authenticeer zorgverleners met een zorgaanbieder IdP.
+    - Pas de beschreven logica toe voor het lokaliseren en onboarden.
+  - Authenticeer de gebruikers met hun applicatie / platform account.
 - Andere **gedeelde libraries**:
   - Bericht transformatie (bijv. Healthcare FHIR ↔ Matrix)
+
+###### IdentityServer logica voor zorgverleners
+![Healthcare Provider Authentication Flow](diagrams/images/Healthcare%20Provider%20Authentication%20Flow.svg)
+
+
+## Open points that need input
+- [ ] The connection type of the endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), should it be something custom, ommitted or something new:
+```
+"connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
+```
