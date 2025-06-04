@@ -248,13 +248,15 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
   "content": {
     "membership": "invite",
     "reason": "Invited to care team for patient consultation",
-    "care.patient.reference": {
-      "identifier": "123456789",
-      "system": "http://fhir.nl/fhir/NamingSystem/bsn"
-    },
-    "care.context": {
-      "care_team_type": "multidisciplinary",
-      "subject": "Medication review discussion"
+    "nl-ta-chat.invite.context" {
+      "version" : 1.0,
+      "room.subject": {
+        "resourceType" : "Patient",
+        "identifier" : [{
+          "value": "87479412034",
+          "system": "http://fhir.nl/fhir/NamingSystem/pseudo-bsn"
+        }]
+      }
     }
   },
   "sender": "@nurse:hospital-a.nl",
@@ -263,41 +265,6 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 }
 ```
 
-**Voorbeeld Matrix Invite Event (JSON-LD):**
-```json
-{
-  "@context": {
-    "@base": "https://matrix.org/schemas/",
-    "matrix": "https://matrix.org/schemas/",
-    "fhir": "http://hl7.org/fhir/",
-    "care": "https://healthcare-communication.org/schemas/",
-    "xsd": "http://www.w3.org/2001/XMLSchema#"
-  },
-  "@type": "matrix:RoomMemberEvent",
-  "matrix:type": "m.room.member",
-  "matrix:stateKey": "@practitioner:hospital-b.nl",
-  "matrix:content": {
-    "matrix:membership": "invite",
-    "matrix:reason": "Invited to care team for patient consultation",
-    "care:patientReference": {
-      "@type": "fhir:Identifier",
-      "fhir:value": "123456789",
-      "fhir:system": "http://fhir.nl/fhir/NamingSystem/bsn"
-    },
-    "care:context": {
-      "@type": "care:CareTeamContext",
-      "care:careTeamType": "multidisciplinary",
-      "care:subject": "Medication review discussion"
-    }
-  },
-  "matrix:sender": "@nurse:hospital-a.nl",
-  "matrix:originServerTs": {
-    "@type": "xsd:dateTime",
-    "@value": "2023-01-19T10:57:36.789Z"
-  },
-  "matrix:eventId": "$example_event_id"
-}
-```
 
 Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
 
@@ -360,7 +327,7 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
    ```json
    {
      "resourceType": "Organization",
-     "id": "hospital-a",
+     "id": "07d91b7d-eb06-47ef-b077-28e0d274c161",
      "name": "Hospital A",
      "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type", "code": "prov"}]}]
    }
@@ -370,7 +337,7 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
    ```json
    {
      "resourceType": "Practitioner",
-     "id": "practitioner-123",
+     "id": "6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594",
      "identifier": [{"system": "http://fhir.nl/fhir/NamingSystem/uzi-nr-pers", "value": "123456789"}],
      "name": [{"family": "Janssen", "given": ["Dr. H."]}]
    }
@@ -380,11 +347,11 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
    ```json
    {
      "resourceType": "PractitionerRole",
-     "id": "role-123",
-     "practitioner": {"reference": "Practitioner/practitioner-123"},
-     "organization": {"reference": "Organization/hospital-a"},
+     "id": "df54b889-d6f5-4d89-993f-2af7950ea83b",
+     "practitioner": {"reference": "Practitioner/6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594"},
+     "organization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "code": [{"coding": [{"system": "http://snomed.info/sct", "code": "158965000", "display": "Medical practitioner"}]}],
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -392,23 +359,23 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
    ```json
    {
      "resourceType": "Endpoint",
-     "id": "matrix-homeserver-hospital-a",
+     "id": "591abf72-ea3b-4cb3-a313-ffe5723292d6",
      "status": "active",
      "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"},
      "name": "Matrix Homeserver for Hospital A",
-     "address": "https://matrix.hospital-a.nl",
-     "header": ["X-Matrix-UserID: @{practitioner.id}:hospital-a.nl"]
+     "address": "https://matrix.hospital-a.nl"
    }
    ```
+
 
 5. **HealthcareService** - Services aangeboden door organisaties
    ```json
    {
      "resourceType": "HealthcareService",
-     "id": "service-123",
-     "providedBy": {"reference": "Organization/hospital-a"},
+     "id": "83f74cda-a81b-4598-a9d0-bab02d387caf",
+     "providedBy": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/service-category", "code": "1"}]}],
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -416,10 +383,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
    ```json
    {
      "resourceType": "Location",
-     "id": "location-123",
+     "id": "351027f8-febc-4698-a6c7-2b3d3d456fab",
      "name": "Hospital A Main Building",
-     "managingOrganization": {"reference": "Organization/hospital-a"},
-     "endpoint": [{"reference": "Endpoint/matrix-homeserver-hospital-a"}]
+     "managingOrganization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
+     "endpoint": [{"reference": "Endpoint/591abf72-ea3b-4cb3-a313-ffe5723292d6"}]
    }
    ```
 
@@ -474,3 +441,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
 
 ###### IdentityServer logica voor zorgverleners
 ![Healthcare Provider Authentication Flow](diagrams/images/Healthcare%20Provider%20Authentication%20Flow.svg)
+
+
+## Open points that need input
+- [ ] The connection type of the endpoint (http://terminology.hl7.org/CodeSystem/endpoint-connection-type), should it be something custom, ommitted or something new: 
+```
+"connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
+```
