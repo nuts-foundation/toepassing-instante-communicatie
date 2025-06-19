@@ -1,0 +1,74 @@
+@startuml Network Creation Flow
+!theme plain
+title Healthcare Communication Network Creation Flow
+
+participant "Healthcare Platform" as Platform
+participant "Platform Bridge" as Bridge
+participant "Matrix Synapse" as Synapse
+participant "ma1sd Identity Server" as Identity
+participant "ma1sd Bridge" as IdentityBridge
+participant "Backend System\n(Keycloak/mCSD/DB)" as Backend
+
+== Care Team Creation ==
+
+Platform -> Bridge: CareTeam created/updated
+note right: Contains Patient, Practitioners,\nRelatedPersons
+
+Bridge -> Backend: Lookup user identities
+note right: UZI, URA, email lookup
+
+Backend -> IdentityBridge: User search request
+IdentityBridge -> Backend: User data
+Backend -> Bridge: User identities + Matrix IDs
+
+Bridge -> Synapse: Create Matrix Space
+note right: Space = Care Team\nfor specific patient
+
+activate Synapse
+Synapse -> Synapse: Generate Space ID
+Synapse -> Bridge: Space created
+deactivate Synapse
+
+== User Identity Mapping ==
+
+loop For each team member
+    Bridge -> Synapse: Add user mapping state event
+    note right: custom.user_mappings\nState key: Matrix user ID\nContent: FHIR ref, UZI, URA, role
+end
+
+== Power Level Assignment ==
+
+Bridge -> Synapse: Set power levels
+note right: 100: Care Team Lead\n75: Practitioners\n50: Related Persons\n25: Patients
+
+== Space-Room Relationships ==
+
+Bridge -> Synapse: Create initial conversation room
+Synapse -> Bridge: Room created
+
+Bridge -> Synapse: Link room to space
+note right: m.space.parent (room → space)\nm.space.child (space → room)
+
+== Cross-Organization Invitations ==
+
+alt External practitioner needed
+    Bridge -> Identity: Lookup external user
+    Identity -> IdentityBridge: Forward lookup
+    IdentityBridge -> Backend: Search external system
+    Backend -> IdentityBridge: External user found
+    IdentityBridge -> Identity: User Matrix ID
+    Identity -> Bridge: External user identity
+    
+    Bridge -> Synapse: Invite external user
+    note right: Include patient context:\nnl-ta-chat.invite.context\nwith Patient resource
+    
+    Synapse -> "External Homeserver": Federation invite
+    note right: Patient context shared\nfor care coordination
+end
+
+== Network Established ==
+
+Bridge -> Platform: Care team network ready
+note right: Matrix space created\nAll members invited\nPermissions configured
+
+@enduml

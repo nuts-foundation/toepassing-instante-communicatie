@@ -1,0 +1,127 @@
+@startuml Message Communication Flow
+!theme plain
+title Healthcare Communication Message Flow
+
+participant "Healthcare Professional" as User
+participant "Element Web Client" as Element
+participant "Matrix Synapse" as Synapse
+participant "Platform Bridge" as Bridge
+participant "Healthcare Platform" as Platform
+participant "FHIR Server\n(or Platform API)" as DataServer
+
+== Bi-directional Message Communication ==
+
+group Platform → Matrix Message Flow
+    Platform -> Bridge: New communication created
+    note right: CommunicationRequest/Communication\nor platform-specific message
+    
+    Bridge -> Bridge: Extract message context
+    note right: Sender, recipients, content,\ncare team association
+    
+    Bridge -> Bridge: Resolve Matrix identities
+    note right: Platform user ID → Matrix user ID\nusing stored mappings
+    
+    alt Room exists
+        Bridge -> Synapse: Send message to existing room
+    else New conversation
+        Bridge -> Synapse: Create new room in care team space
+        Bridge -> Synapse: Invite participants
+        Bridge -> Synapse: Link room to space
+        note right: m.space.parent/child events
+        Bridge -> Synapse: Send initial message
+    end
+    
+    Synapse -> Element: Message delivered
+    Element -> User: Display notification
+end
+
+group Matrix → Platform Message Flow
+    User -> Element: Send message in room
+    Element -> Synapse: m.room.message event
+    
+    Synapse -> Bridge: Forward to Application Service
+    note right: Bridge registered as\nApplication Service
+    
+    Bridge -> Bridge: Extract room context
+    note right: Room ID → Care team\nUser mappings from state events
+    
+    Bridge -> Bridge: Resolve platform identities
+    note right: Matrix user ID → Platform user ID\nFHIR references, etc.
+    
+    Bridge -> DataServer: Create platform message
+    note right: FHIR Communication resource\nor platform-specific API call
+    
+    DataServer -> Platform: Message stored/forwarded
+    Platform -> Platform: Process business logic
+    note right: Notifications, workflows,\naudit trails, etc.
+end
+
+== Cross-Organization Communication ==
+
+group External User Sends Message
+    "External User" as ExtUser -> "External Element" as ExtElement
+    ExtElement -> "External Synapse" as ExtSynapse
+    ExtSynapse -> Synapse: Federated message
+    note right: Matrix federation protocol\nE2E encrypted if enabled
+    
+    Synapse -> Bridge: Process federated message
+    Bridge -> Bridge: Resolve external user context
+    note right: Check user mappings\nValidate care team membership
+    
+    Bridge -> DataServer: Store cross-org message
+    note right: Mark as external communication\nfor audit/compliance
+    
+    DataServer -> Platform: External message received
+end
+
+== Message Threading & Conversations ==
+
+group Structured Conversations
+    User -> Element: Start new conversation topic
+    Element -> Synapse: Create child room in space
+    
+    Synapse -> Bridge: New room creation event
+    Bridge -> Bridge: Inherit care team context
+    note right: Copy user mappings\nSet appropriate permissions
+    
+    Bridge -> Synapse: Configure room permissions
+    note right: Based on conversation type:\nProfessional-only vs\nPatient-inclusive
+    
+    Bridge -> DataServer: Create conversation record
+    note right: Link to parent care team\nSet conversation metadata
+end
+
+== Message Attachments & Media ==
+
+group File Sharing
+    User -> Element: Upload file/image
+    Element -> Synapse: m.room.message (file)
+    note right: Media stored in Synapse\nwith access controls
+    
+    Synapse -> Bridge: File message event
+    Bridge -> Bridge: Validate file type/size
+    note right: Healthcare compliance:\nNo PHI in filenames\nVirus scanning, etc.
+    
+    alt Compliant file
+        Bridge -> DataServer: Store file reference
+        note right: Link to FHIR DocumentReference\nor platform file record
+    else Non-compliant
+        Bridge -> Synapse: Delete/redact message
+        Bridge -> Element: Send warning message
+    end
+end
+
+== Message Status & Delivery ==
+
+group Read Receipts & Status
+    Element -> Synapse: m.receipt event
+    Synapse -> Bridge: Receipt notification
+    Bridge -> DataServer: Update message status
+    note right: Mark as read in platform\nfor audit/compliance
+    
+    Bridge -> Platform: Delivery confirmation
+    Platform -> Platform: Update care records
+    note right: Message delivery logged\nfor healthcare audit trail
+end
+
+@enduml
