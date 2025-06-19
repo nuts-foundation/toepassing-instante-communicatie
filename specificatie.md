@@ -290,6 +290,40 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 
 Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
 
+#### 🔧 Custom State Events
+
+Naast de standaard Matrix events worden er custom state events gebruikt voor specifieke zorgfunctionaliteit:
+
+**1. User Mappings State Event (`custom.user_mappings`)**
+- **Doel**: Opslaan van FHIR identiteit mappings per gebruiker
+- **State key**: Matrix user ID (bijv. `@user:homeserver.nl`)
+- **Content structure**:
+```json
+{
+  "fhirRef": "Patient/123 | Practitioner/456 | RelatedPerson/789",
+  "uraNr": "00000001",
+  "uziNr": "123456789", 
+  "roleCode": "158965000",
+  "email": "user@example.com"
+}
+```
+- **Gebruik**: Wordt toegevoegd aan zowel spaces (care teams) als rooms (gesprekken) om gebruikers te koppelen aan hun FHIR identiteit
+
+**2. Space Relationship Events**
+Voor het beheren van hiërarchische relaties tussen spaces en rooms:
+
+- **Space Parent Event (`m.space.parent`)**
+  - **State key**: Space ID 
+  - **Content**: `{"via": ["homeserver.nl"], "canonical": true}`
+  - **Gebruik**: Geplaatst in room om aan te geven dat de room onderdeel is van een space
+
+- **Space Child Event (`m.space.child`)**
+  - **State key**: Room ID
+  - **Content**: `{"via": ["homeserver.nl"], "order": "01", "suggested": true}`
+  - **Gebruik**: Geplaatst in space om aan te geven dat een room een child is van de space
+
+Deze events zorgen voor bidirectionele space-room relaties en ondersteunen de care team structuur.
+
 ---
 
 ### **5. Messagingmodel**
