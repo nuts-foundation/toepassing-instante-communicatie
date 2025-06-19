@@ -47,7 +47,7 @@ Your bridge needs to handle two main workflows:
       "address": "123456789"
     },
     {
-      "medium": "ura_nr", 
+      "medium": "ura_nr",
       "address": "00000001"
     },
     {
@@ -135,7 +135,7 @@ Your bridge needs to handle two main workflows:
 // Your platform's care team
 const careTeam = {
   id: "team_123",
-  patient_id: "patient_67890", 
+  patient_id: "patient_67890",
   members: [
     { type: "practitioner", id: "doc_12345", role: "primary" },
     { type: "practitioner", id: "nurse_456", role: "care_coordinator" },
@@ -151,7 +151,7 @@ const matrixSpace = {
   power_levels: {
     users: {
       "@dr.smith:domain.nl": 75,    // Practitioner
-      "@nurse.jane:domain.nl": 75,  // Practitioner  
+      "@nurse.jane:domain.nl": 75,  // Practitioner
       "@family.member:domain.nl": 50, // Related person
       "@patient.john:domain.nl": 25   // Patient
     }
@@ -180,7 +180,7 @@ const spaceId = await matrixClient.createRoom({
 
 **Implementation Tasks:**
 - Monitor care team changes in your platform
-- Create/update Matrix spaces automatically  
+- Create/update Matrix spaces automatically
 - Manage member permissions based on roles
 - Handle patient privacy (no patient data in room metadata)
 
@@ -225,14 +225,14 @@ class IdentityServerBridge {
 app.post('/_ma1sd/backend/api/v1/identity/single', async (req, res) => {
   try {
     const { medium, address } = req.body.lookup;
-    
+
     // Search your backend for user with this 3PID
     const users = await this.backend.searchUsers(medium, address);
-    
+
     if (users.length === 0) {
       return res.json({}); // No user found
     }
-    
+
     const user = users[0];
     res.json({
       id: {
@@ -254,7 +254,7 @@ app.post('/_ma1sd/backend/api/v1/identity/bulk', async (req, res) => {
   try {
     const { lookup } = req.body; // Array of {medium, address}
     const results = [];
-    
+
     for (const item of lookup) {
       const users = await this.backend.searchUsers(item.medium, item.address);
       if (users.length > 0) {
@@ -270,7 +270,7 @@ app.post('/_ma1sd/backend/api/v1/identity/bulk', async (req, res) => {
         });
       }
     }
-    
+
     res.json({ results });
   } catch (error) {
     console.error('Bulk lookup error:', error);
@@ -284,14 +284,14 @@ app.post('/_ma1sd/backend/api/v1/identity/bulk', async (req, res) => {
 app.post('/_ma1sd/backend/api/v1/directory/user/search', async (req, res) => {
   try {
     const { search_term } = req.body;
-    
+
     const users = await this.backend.searchUsersByName(search_term);
-    
+
     const results = users.map(user => ({
       value: this.formatMatrixId(user.username),
       display_name: user.displayName || user.username
     }));
-    
+
     res.json({
       limited: false,
       results
@@ -309,15 +309,15 @@ app.post('/_ma1sd/backend/api/v1/auth/login', async (req, res) => {
   try {
     const { mxid, password } = req.body.auth;
     const username = mxid.split(':')[0].substring(1); // Extract from @user:domain
-    
+
     const authResult = await this.backend.authenticate(username, password);
-    
+
     if (!authResult.success) {
       return res.json({ success: false });
     }
-    
+
     const user = await this.backend.getProfile(username);
-    
+
     res.json({
       success: true,
       id: {
@@ -354,17 +354,17 @@ class KeycloakAdapter {
 
   async searchUsers(medium, address) {
     const token = await this.getServiceToken();
-    
+
     // Map 3PID medium to Keycloak attribute
     const attributeMap = {
       'email': 'email',
-      'ura_nr': 'uraNr', 
+      'ura_nr': 'uraNr',
       'uzi_nr': 'uziNr',
       'role_code': 'roleCode'
     };
-    
+
     const attribute = attributeMap[medium] || medium;
-    
+
     if (medium === 'email') {
       const response = await this.keycloakClient.get(
         `/admin/realms/${this.realm}/users?email=${encodeURIComponent(address)}`,
@@ -372,7 +372,7 @@ class KeycloakAdapter {
       );
       return response.data;
     }
-    
+
     // Search custom attributes
     const response = await this.keycloakClient.get(
       `/admin/realms/${this.realm}/users?q=${attribute}:${encodeURIComponent(address)}`,
@@ -414,7 +414,7 @@ class FhirMcsdAdapter {
 
   async searchUsers(medium, address) {
     const searchParams = {};
-    
+
     // Map 3PID medium to FHIR search parameters
     switch (medium) {
       case 'email':
@@ -431,46 +431,46 @@ class FhirMcsdAdapter {
             organization: `urn:oid:2.16.528.1.1007.3.3|${address}`
           }
         });
-        
+
         if (roles.entry && roles.entry.length > 0) {
-          const practitionerRefs = roles.entry.map(e => 
+          const practitionerRefs = roles.entry.map(e =>
             e.resource.practitioner?.reference?.replace('Practitioner/', '')
           ).filter(Boolean);
-          
+
           if (practitionerRefs.length > 0) {
             searchParams._id = practitionerRefs.join(',');
           }
         }
         break;
     }
-    
+
     const bundle = await this.fhirClient.search({
       resourceType: 'Practitioner',
       searchParams
     });
-    
+
     return this.transformFhirUsers(bundle.entry || []);
   }
 
   transformFhirUsers(entries) {
     return entries.map(entry => {
       const practitioner = entry.resource;
-      const matrixTelecom = practitioner.telecom?.find(t => 
-        t.system === 'other' && 
+      const matrixTelecom = practitioner.telecom?.find(t =>
+        t.system === 'other' &&
         t.value?.includes('@') &&
         t.extension?.some(ext => ext.valueString === 'matrix-messaging')
       );
-      
+
       return {
         id: practitioner.id,
-        username: matrixTelecom ? 
-          matrixTelecom.value.split('@')[1].split(':')[0] : 
+        username: matrixTelecom ?
+          matrixTelecom.value.split('@')[1].split(':')[0] :
           practitioner.id,
-        displayName: practitioner.name?.[0] ? 
+        displayName: practitioner.name?.[0] ?
           `${practitioner.name[0].given?.join(' ')} ${practitioner.name[0].family}` :
           practitioner.id,
         email: practitioner.telecom?.find(t => t.system === 'email')?.value,
-        uziNr: practitioner.identifier?.find(i => 
+        uziNr: practitioner.identifier?.find(i =>
           i.system === 'http://fhir.nl/fhir/NamingSystem/uzi-nr-pers'
         )?.value
       };
@@ -493,10 +493,10 @@ class DatabaseAdapter {
       uzi_nr: 'SELECT * FROM users WHERE uzi_number = ?',
       role_code: 'SELECT * FROM users WHERE role_code = ?'
     };
-    
+
     const sql = query[medium];
     if (!sql) return [];
-    
+
     const results = await this.db.query(sql, [address]);
     return results.map(row => ({
       id: row.id,
@@ -511,12 +511,12 @@ class DatabaseAdapter {
 
   async authenticate(username, password) {
     const user = await this.db.query(
-      'SELECT * FROM users WHERE username = ?', 
+      'SELECT * FROM users WHERE username = ?',
       [username]
     );
-    
+
     if (!user[0]) return { success: false };
-    
+
     // Use your password hashing library
     const isValid = await bcrypt.compare(password, user[0].password_hash);
     return { success: isValid };
@@ -540,10 +540,10 @@ const config = {
   clientId: process.env.KEYCLOAK_CLIENT_ID,
   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
   realm: process.env.KEYCLOAK_REALM,
-  
+
   // Or FHIR config
   fhirBaseUrl: process.env.FHIR_BASE_URL,
-  
+
   // Or database config
   database: yourDatabaseConnection
 };
@@ -611,7 +611,7 @@ await matrixClient.sendStateEvent(
   }
 );
 
-// 2. Add space as parent to the room  
+// 2. Add space as parent to the room
 await matrixClient.sendStateEvent(
   roomId,                    // The conversation room ID
   "m.space.parent",         // EventType.SpaceParent
@@ -639,7 +639,7 @@ const userMap = {
     email: "dr.smith@hospital-a.nl"           // Email address
   },
   "@patient.john:domain.nl": {
-    fhirRef: "Patient/patient_67890",         // FHIR resource reference  
+    fhirRef: "Patient/patient_67890",         // FHIR resource reference
     email: "john.doe@example.com"             // Email address (patients/related persons)
   },
   "@family.member:domain.nl": {
@@ -658,10 +658,10 @@ const CUSTOM_USER_MAP_STATE_KEY = "custom.user_mappings";
 await Promise.all(
   Object.entries(userMap).map(([userId, userInfo]) => {
     // Create an intent for each user to send their own state event
-    const userIntent = matrixClient.getIntent ? 
+    const userIntent = matrixClient.getIntent ?
       matrixClient.getIntent(userId) : // Application service pattern
       matrixClient; // Regular client
-    
+
     return userIntent.sendStateEvent(
       roomId,                          // Room ID where to store the mapping
       CUSTOM_USER_MAP_STATE_KEY,       // State event type
@@ -701,10 +701,10 @@ if (userMapping) {
 ```javascript
 // Update user mapping when platform data changes
 const updateUserMapping = async (roomId, userId, updatedUserInfo) => {
-  const userIntent = matrixClient.getIntent ? 
-    matrixClient.getIntent(userId) : 
+  const userIntent = matrixClient.getIntent ?
+    matrixClient.getIntent(userId) :
     matrixClient;
-    
+
   await userIntent.sendStateEvent(
     roomId,
     CUSTOM_USER_MAP_STATE_KEY,
@@ -716,7 +716,7 @@ const updateUserMapping = async (roomId, userId, updatedUserInfo) => {
 // Example: Update practitioner's role
 await updateUserMapping(roomId, "@dr.smith:domain.nl", {
   fhirRef: "Practitioner/doc_12345",
-  uraNr: "00000001", 
+  uraNr: "00000001",
   uziNr: "123456789",
   roleCode: "223366009", // Updated role code
   email: "dr.smith@hospital-a.nl"
@@ -752,7 +752,7 @@ const addChildToSpace = async (spaceId, roomId) => {
    function handleNewMessage(message) {
      const matrixRoom = findMatrixRoom(message.conversation_id);
      const senderMatrixId = getUserMatrixId(message.sender_id);
-     
+
      sendMatrixMessage(matrixRoom, senderMatrixId, message.content);
    }
    ```
@@ -775,7 +775,7 @@ const addChildToSpace = async (spaceId, roomId) => {
      if (event.getType() === "m.room.message") {
        const platformConversationId = extractPlatformId(room);
        const senderInfo = getUserMapping(event.getSender());
-       
+
        createPlatformMessage({
          conversation_id: platformConversationId,
          sender_id: senderInfo.platform_id,
@@ -827,7 +827,7 @@ await matrixClient.invite(roomId, "@specialist:other-hospital.nl", {
 const platformToMatrix = {
   users: {
     staff_member: "practitioner",
-    family_contact: "related_person", 
+    family_contact: "related_person",
     client: "patient"
   },
   teams: {
@@ -880,76 +880,6 @@ setInterval(async () => {
 - Never include patient identifiers in room names or topics
 - Use patient context only in invitation events
 - Implement audit logging for all access
-
----
-
-## 🚀 Getting Started Checklist
-
-### Phase 1: Foundation (Hours 1-4)
-- [ ] Set up Matrix homeserver (local/demo)
-- [ ] Create identity mapping database schema
-- [ ] Implement basic user provisioning
-- [ ] Test Matrix space creation
-
-### Phase 2: Core Integration (Hours 5-12)
-- [ ] Build care team synchronization
-- [ ] Implement message routing (one direction)
-- [ ] Add user invitation handling
-- [ ] Test with sample data
-
-### Phase 3: Enhancement (Hours 13-24)
-- [ ] Add bi-directional messaging
-- [ ] Implement file/attachment support
-- [ ] Add notification handling
-- [ ] Polish user experience
-
-### Phase 4: Polish & Demo (Hours 25-36)
-- [ ] Error handling and edge cases
-- [ ] Security review
-- [ ] Performance optimization
-- [ ] Prepare demonstration
-
----
-
-## 🧪 Testing Strategy
-
-**Unit Tests:**
-- Identity mapping functions
-- Message transformation logic
-- Permission calculation
-
-**Integration Tests:**
-- End-to-end message flow
-- Cross-platform user invitations
-- Care team updates
-
-**Demo Scenarios:**
-1. New patient admission → care team creation
-2. Practitioner sends message → appears in platform
-3. Specialist from other organization joins consultation
-4. Patient family member receives updates
-
----
-
-## 🎯 Success Metrics
-
-Your bridge implementation should demonstrate:
-
-1. **User Synchronization**: Smooth mapping between platform users and Matrix identities
-2. **Care Team Management**: Automatic space creation and member management
-3. **Message Flow**: Bi-directional communication without data loss
-4. **Cross-Platform Integration**: Successful collaboration with other organizations
-5. **Security Compliance**: Proper privacy protection and access controls
-
----
-
-## 💡 Tips for Success
-
-- **Start Simple**: Focus on basic message flow before adding complex features
-- **Use Mock Data**: Create realistic test scenarios with multiple user types
-- **Handle Edge Cases**: Missing users, network failures, permission issues
-- **Think Privacy-First**: Design with healthcare data protection in mind
-- **Document Your Choices**: Explain how your implementation differs from reference
 
 ---
 

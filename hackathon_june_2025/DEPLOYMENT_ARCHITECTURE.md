@@ -67,14 +67,14 @@ services:
   # Matrix Homeserver
   synapse:
     image: matrixdotorg/synapse:latest
-    ports: 
+    ports:
       - "8008:8008"
     volumes:
       - synapse_data:/data
     environment:
       SYNAPSE_SERVER_NAME: localhost
       SYNAPSE_REPORT_STATS: "no"
-    
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -84,11 +84,11 @@ services:
       POSTGRES_PASSWORD: synapse_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      
+
   # HAPI FHIR Server
   fhir-server:
     image: hapiproject/hapi:latest
-    ports: 
+    ports:
       - "8080:8080"
     environment:
       spring.datasource.url: jdbc:postgresql://postgres:5432/fhir
@@ -98,7 +98,7 @@ services:
       hapi.fhir.subscription.resthook_enabled: true
     depends_on:
       - postgres
-    
+
   # ma1sd Identity Server
   ma1sd:
     image: ma1uta/ma1sd:latest
@@ -108,11 +108,11 @@ services:
       - ./ma1sd.yaml:/etc/ma1sd/ma1sd.yaml:ro
     depends_on:
       - postgres
-    
+
   # Your Bridge Service
   your-bridge:
     build: ./bridge
-    ports: 
+    ports:
       - "3000:3000"
     environment:
       MATRIX_URL: http://synapse:8008
@@ -181,7 +181,7 @@ spec:
         - name: POSTGRES_DB
           value: "synapse"
         - name: POSTGRES_USER
-          value: "synapse_user" 
+          value: "synapse_user"
         - name: POSTGRES_PASSWORD
           value: "synapse_password"
         volumeMounts:
@@ -382,7 +382,7 @@ kubectl scale deployment bridge-service --replicas=3 -n healthcare-matrix
 
 **Health Check:** `GET /_matrix/client/versions`
 
-**Configuration:** 
+**Configuration:**
 - Application service registration for FHIR bridge
 - Database connection to PostgreSQL
 - Media upload handling
@@ -534,7 +534,7 @@ Team Members Invited to Matrix Space
   - Message history and media references
   - Application service transactions
 
-- `fhir_db`: HAPI FHIR server data  
+- `fhir_db`: HAPI FHIR server data
   - FHIR resources and search indices
   - Subscription configurations
   - Resource versioning and history
@@ -720,7 +720,7 @@ spec:
 
 **Hardware:**
 - **CPU:** 2 cores minimum, 4 cores recommended
-- **RAM:** 4 GB minimum, 8 GB recommended  
+- **RAM:** 4 GB minimum, 8 GB recommended
 - **Storage:** 10 GB for basic setup, 50 GB for extended testing
 - **Network:** 100 Mbps for local development
 
@@ -778,7 +778,7 @@ resources:
     cpu: "2000m"
     memory: "4Gi"
   requests:
-    cpu: "1000m" 
+    cpu: "1000m"
     memory: "2Gi"
 ```
 
@@ -822,11 +822,11 @@ sleep 30
 
 # Health checks
 echo "🔍 Checking service health..."
-echo "Matrix Synapse:" 
+echo "Matrix Synapse:"
 curl -s http://localhost:8008/_matrix/client/versions | jq -r '.versions[0]' || echo "❌ Failed"
 
 echo "FHIR Server:"
-curl -s http://localhost:8080/fhir/metadata | jq -r '.software.name' || echo "❌ Failed" 
+curl -s http://localhost:8080/fhir/metadata | jq -r '.software.name' || echo "❌ Failed"
 
 echo "Bridge Service:"
 curl -s http://localhost:3000/health | jq -r '.status' || echo "❌ Failed"
@@ -855,7 +855,7 @@ kubectl wait --for=condition=available --timeout=300s deployment --all -n health
 # Port forward for local access
 echo "Setting up port forwarding..."
 kubectl port-forward -n healthcare-matrix svc/synapse 8008:8008 &
-kubectl port-forward -n healthcare-matrix svc/fhir-server 8080:8080 &  
+kubectl port-forward -n healthcare-matrix svc/fhir-server 8080:8080 &
 kubectl port-forward -n healthcare-matrix svc/bridge-service 3000:3000 &
 
 echo "✅ Kubernetes deployment complete!"
@@ -940,10 +940,10 @@ database:
   args:
     cp_min: 5
     cp_max: 20
-    
+
 caches:
   global_factor: 2.0
-  
+
 media_store_path: "/data/media"
 max_upload_size: 50M
 ```
