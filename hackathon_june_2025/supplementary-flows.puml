@@ -1,0 +1,57 @@
+@startuml title Supplementary flows – Identity, Discovery & Invitation
+
+actor Practitioner       as "Practitioner\n(client app)"
+database IdP             as "IdP / SAML"
+database Directory       as "LRZA / mCSD Directory"
+participant HSP          as "Homeserver\n(practitioner vendor)"
+participant Bridge       as "OZO Matrix Bridge"
+participant HSO          as "Homeserver\n(OZO vendor)"
+actor RelatedPerson      as "Related Person"
+participant Email        as "Email Service"
+participant HSOld        as "Homeserver\n(old vendor)"
+participant HSNew        as "Homeserver\n(new vendor)"
+collections Space        as "Matrix Space\n(CareTeam)"
+collections Room         as "Matrix Room\n(Conversation)"
+
+'─────────────────────────────────────────────────────────────
+== A. Practitioner login & homeserver discovery ==
+Practitioner -> IdP        : SAML / OIDC login
+IdP          --> Practitioner : auth token
+Practitioner -> Directory   : mCSD query\n(UZI, function)
+Directory     --> Practitioner : homeserver = hs.provider.nl
+Practitioner -> HSP          : /login (token)
+HSP          --> Practitioner : access token + device ID
+
+'─────────────────────────────────────────────────────────────
+== B. Bridge auto-invite located practitioner ==
+Bridge -> Directory : mCSD query(UZI = 123456789)
+Directory --> Bridge : @dr.bakker:hs.provider.nl
+Bridge -> Space      : m.room.member invite\n(@dr.bakker)
+
+'─────────────────────────────────────────────────────────────
+== C. Power-level bootstrap ==
+Bridge -> Space : m.room.power_levels { "@lead":100,\n"@dr.bakker":75 }
+
+'─────────────────────────────────────────────────────────────
+== D. Patient association state event ==
+alt Patient not member
+Bridge -> Room : care.ozo.patient\n(pseudoId = p123456)
+else Patient already member
+note right: No extra state event needed
+end
+
+'─────────────────────────────────────────────────────────────
+== E. Email invitation for RelatedPerson ==
+Bridge -> Email : send invitation\n(link to @rp:hs.ozo.nl)
+Email  --> RelatedPerson : invitation email
+RelatedPerson -> HSO : /register (email, 2FA)
+HSO --> RelatedPerson : account created
+
+'─────────────────────────────────────────────────────────────
+== F. Vendor migration (optional future flow) ==
+OldVendor -> Directory : detect new Endpoint
+OldVendor -> HSOld     : /deactivate @user:old
+OldVendor -> HSNew     : /invite @user:new to rooms
+note right of OldVendor : Matrix account\nmigration protocol
+
+@enduml

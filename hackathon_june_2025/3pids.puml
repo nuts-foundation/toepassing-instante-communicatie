@@ -1,0 +1,52 @@
+@startuml 3pids
+title Matrix Architecture met Identity Services
+
+' Define components
+component "Matrix Homeserver" as MHS #lightblue
+component "MAS\n(Matrix Authentication Service)" as MAS #lightgreen
+component "Federated IdP" as FIdP #orange
+component "Identity Service" as IS #yellow
+component "REST Store\n(Delegation Layer)" as RS #lightgray
+component "REST Bridge/API" as RB #pink
+database "mCSD\n(mHealth Care Services Discovery)" as mCSD #lightcyan
+
+' Define relationships
+MHS --> MAS : "Authenticatie\nrequests"
+MAS --> FIdP : "Federated\nauthenticatie"
+FIdP --> MAS : "Auth tokens/\nclaims"
+IS --> RS : "API calls\n(zoek op email, ura,\nuzi, rolCode)"
+RS --> RB : "Delegeert naar:\n/directory\n/single\n/bulk"
+RB --> IS : "Haalt identity\ndata op"
+RB --> mCSD : "Synchronisatie\n3PID mappings"
+MAS --> IS : "Identity\nverificatie"
+MHS --> IS : "3PID lookup\nrequests"
+
+' Add notes
+note right of RS
+  REST Store fungeert als
+  delegation layer die
+  verwijst naar REST Bridge
+  endpoints
+end note
+
+note right of RB
+  REST Bridge implementeert:
+  - /directory endpoint
+  - /single endpoint
+  - /bulk endpoint
+  Voor 3PID mapping operaties
+end note
+
+note left of FIdP
+  Geconfigureerd bij
+  de MAS voor externe
+  authenticatie
+end note
+
+note bottom of IS
+  Identity Service gebruikt
+  REST Store als delegation
+  layer naar externe services
+end note
+
+@enduml

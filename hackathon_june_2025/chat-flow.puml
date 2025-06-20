@@ -1,0 +1,33 @@
+@startuml matrix_bridge
+title FHIR → Matrix Bridge integration
+
+actor      Client  as "User"
+participant Store   as "FHIR Store"
+participant Bridge  as "Matrix Bridge"
+participant HS      as "Matrix Homeserver"
+collections Space   as "Matrix Space"
+collections Room    as "Matrix Room / Channel"
+
+== Flow 1: New CareTeam → create Matrix Space ==
+Client -> Store  : POST CareTeam
+Store  --> Client: 201 Created
+Store  -> Bridge : Subscription event\n(CareTeam created)
+Bridge -> HS     : Create Space(name = CareTeam.id,\nmetadata = patient context)
+HS     --> Bridge: SpaceID
+Bridge -> Space  : Invite team members\n& set power levels
+
+== Flow 2: New CommunicationRequest → new Channel ==
+Client -> Store  : POST CommunicationRequest
+Store  --> Client: 201 Created
+Store  -> Bridge : Subscription event\n(CommunicationRequest created)
+Bridge -> HS     : Create Room(parent = SpaceID,\nname = CommunicationRequest.subject)
+HS     --> Bridge: RoomID
+Bridge -> Space  : Link Room to Space (space-child event)
+Bridge -> Room   : Configure room metadata\n(tag = "Clinical-Thread")
+
+== Flow 3: New Communication → chat message ==
+Client -> Store  : POST Communication
+Store  --> Client: 201 Created
+Store  -> Bridge : Subscription event\n(Communication created)
+Bridge -> Room   : m.room.message\n(body = Communication.payload,\nrelates_to = CommunicationRequest)
+@enduml
