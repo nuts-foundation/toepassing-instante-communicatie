@@ -74,21 +74,48 @@ group External User Sends Message
     DataServer -> Platform: External message received
 end
 
-== Message Threading & Conversations ==
+== Room Creation & User Invitations ==
 
-group Structured Conversations
+group Scenario 1: Room Creation with Implicit Invites (Local Users)
     User -> Element: Start new conversation topic
-    Element -> Synapse: Create child room in space
+    Element -> Synapse: Create room with invite array
+    note right: createRoom({\n  name: "Discussion",\n  invite: ["@local.user1", "@local.user2"],\n  initial_state: [m.space.parent]\n})
     
-    Synapse -> Bridge: New room creation event
-    Bridge -> Bridge: Inherit care team context
-    note right: Copy user mappings\nSet appropriate permissions
+    Synapse -> Synapse: Create room and send invites
+    note right: Matrix handles invitations\nautomatically for local users
     
-    Bridge -> Synapse: Configure room permissions
-    note right: Based on conversation type:\nProfessional-only vs\nPatient-inclusive
+    Synapse -> Bridge: Room creation event
+    Bridge -> Bridge: Process new room
+    note right: Add user mappings\nLink to care team space
     
-    Bridge -> DataServer: Create conversation record
-    note right: Link to parent care team\nSet conversation metadata
+    Bridge -> Synapse: Add space child relationship
+    note right: m.space.child event\nin parent space
+    
+    Bridge -> DataServer: Store room metadata
+    note right: Link to platform conversation\nRecord participants
+end
+
+group Scenario 2: Room Creation with Explicit Invites (Remote Users)
+    User -> Element: Start cross-organization conversation
+    Element -> Synapse: Create room (no invite array)
+    note right: createRoom({\n  name: "Consultation",\n  initial_state: [m.space.parent]\n})
+    
+    Synapse -> Bridge: Room creation event
+    Bridge -> Bridge: Process new room
+    note right: Set up room structure\nPrepare for external invites
+    
+    Bridge -> Synapse: Add space child relationship
+    
+    loop For each external user
+        Bridge -> Synapse: Send explicit invite with context
+        note right: invite(userId, {\n  reason: "Consultation",\n  "nl-ta-chat.invite.context": {\n    version: "1.0",\n    "room.subject": {\n      "platform_type": "patient_record",\n      "identifier": "patient_67890"\n    }\n  }\n})
+        
+        Synapse -> "External Homeserver": Federation invite
+        note right: Include patient context\nfor care coordination
+    end
+    
+    Bridge -> DataServer: Store room with external participants
+    note right: Mark as cross-organization\nfor audit/compliance
 end
 
 == Message Attachments & Media ==

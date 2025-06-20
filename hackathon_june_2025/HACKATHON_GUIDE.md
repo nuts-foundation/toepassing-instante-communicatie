@@ -574,27 +574,80 @@ bridge.start();
 
 **Concept**: Each conversation topic becomes a Matrix room within the care team space.
 
-**Room Creation Pattern:**
+**Room Creation Pattern - Two Scenarios:**
+
+**Scenario 1: Room Creation with Implicit Invites (Local Users)**
+
+When all participants are from the same organization/homeserver, use the `invite` array during room creation:
+
 ```javascript
+// Create room with automatic invitations for local users
 const roomId = await matrixClient.createRoom({
   name: "Medication Review Discussion",
   room_alias_name: "med-review-456",
   invite: [
-    "@dr.smith:domain.nl",
-    "@nurse.jane:domain.nl"
+    "@dr.smith:hospital-a.nl",      // Same homeserver
+    "@nurse.jane:hospital-a.nl"     // Same homeserver
   ],
   initial_state: [
     {
       type: "m.space.parent",
       state_key: spaceId,
       content: {
-        via: ["domain.nl"],
+        via: ["hospital-a.nl"],
         canonical: true
       }
     }
   ]
 });
+// Matrix automatically sends invitations to all users in the invite array
 ```
+
+**Scenario 2: Room Creation with Explicit Invites (Remote Users)**
+
+When participants include users from other organizations/homeservers, create the room first, then send explicit invitations with patient context:
+
+```javascript
+// Step 1: Create room without invites
+const roomId = await matrixClient.createRoom({
+  name: "Cross-Organization Consultation",
+  room_alias_name: "consultation-789",
+  initial_state: [
+    {
+      type: "m.space.parent",
+      state_key: spaceId,
+      content: {
+        via: ["hospital-a.nl"],
+        canonical: true
+      }
+    }
+  ]
+});
+
+// Step 2: Invite local users (plain invite)
+await matrixClient.invite(roomId, "@dr.smith:hospital-a.nl");
+
+// Step 3: Invite remote users with patient context
+await matrixClient.invite(roomId, "@specialist:other-hospital.nl", {
+  reason: "Cardiology consultation request",
+  "nl-ta-chat.invite.context": {
+    version: "1.0",
+    "room.subject": {
+      resourceType: "Patient",
+      identifier: [{
+        value: "87479412034",
+        system: "http://fhir.nl/fhir/NamingSystem/pseudo-bsn"
+      }]
+    }
+  }
+});
+```
+
+**Key Differences:**
+- **Local users**: Use `invite` array in `createRoom()` for efficiency
+- **Remote users**: Use explicit `invite()` calls with patient context
+- **Patient privacy**: Only include patient data in cross-organization invites
+- **Federation**: Remote invites trigger Matrix federation protocol
 
 **After Room Creation - Link to Space:**
 
@@ -789,11 +842,23 @@ const addChildToSpace = async (spaceId, roomId) => {
 
 ### Step 2.4: User Invitation Flow
 
-**Cross-Organization Invites:**
+**Local User Invites (Same Organization):**
 
-When inviting users from other healthcare organizations, include patient context:
+When inviting users from the same organization/homeserver, use a plain invite without patient context:
 
 ```javascript
+// Plain invite for local users
+await matrixClient.invite(roomId, "@nurse.jane:hospital-a.nl", {
+  reason: "Adding care team member"
+});
+```
+
+**Remote User Invites (Cross-Organization):**
+
+When inviting users from other healthcare organizations/homeservers, include patient context using room.subject:
+
+```javascript
+// Invite with room.subject for remote users
 await matrixClient.invite(roomId, "@specialist:other-hospital.nl", {
   reason: "Consultation request for cardiac care",
   "nl-ta-chat.invite.context": {
