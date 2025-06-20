@@ -253,8 +253,8 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 
 #### 🩺 Cliënt Associatie
 
-- **Cliëntidentiteit wordt alleen gecommuniceerd in uitnodigingsberichten** bij het uitnodigen van gebruikers van andere homeservers.
-- **Room metadata bevat geen cliëntinformatie** om datalekkage te voorkomen.
+- **Cliëntidentiteit wordt alleen gecommuniceerd in uitnodigingsberichten** bij het uitnodigen van gebruikers van andere homeservers, als je die via mCSD hebt verkregen (als de andere kant ook een zorginstelling is).
+- **Room metadata bevat geen cliëntinformatie** om datalekkage te voorkomen. Matrixservers bevatten hiermee geen persoonsgegevens.
 - Eenmaal uitgenodigd, is het ontvangende systeem verantwoordelijk voor het lokaal onderhouden van de cliënt-space associatie.
 - Gebruik `m.space.child` en `m.space.parent` events om een top level space en child rooms voor elk gesprek aan te maken, zonder cliëntdata bloot te stellen in de metadata.
 - **Uitnodigingscontext Uitbreiding:** Aan de content van uitnodigingsberichten is het `nl-ta-chat.invite.context` veld toegevoegd. Dit element bevat:
@@ -297,6 +297,7 @@ Naast de standaard Matrix events worden er custom state events gebruikt voor spe
 **1. User Mappings State Event (`custom.user_mappings`)**
 - **Doel**: Opslaan van FHIR identiteit mappings per gebruiker
 - **State key**: Matrix user ID (bijv. `@user:homeserver.nl`)
+- Let op! Deze FHIR identiteit mappings mogen geen persoonsgegevens zijn (dus geen BSN).
 - **Content structure**:
 ```json
 {
@@ -334,6 +335,16 @@ Deze events zorgen voor bidirectionele space-room relaties en ondersteunen de ca
 - Optioneel: Gebruik room tags of labels om urgentie, onderwerpen of domeinen te markeren (bijv. medicatie, wonen, psychosociaal).
 - Generieke Functie Adressering vormt het onderliggende mechanisme voor het lokaliseren van Zorgverleners.
 
+#### Minimale implementatie
+
+Indien je een bridge of de Matrix Client SDK implementeert (ipv de normale web client te gebruiken), implementeer dan minimaal:
+
+- Normale berichten zonder opmaak of emoji
+- Berichten met basisopmaak (bold, italic, underline)
+- Berichten met basisemoji of andere Unicode tekens
+
+Het implementeren van custom emoji, video, afbeeldingen etc is optioneel. Als er een bericht ontvangen wordt met deze inhoud dan moet je een bericht terugsturen naar de verzender dat dit type bericht niet wordt ondersteund (bijv vanuit de bot zelf) en geef je het bericht vanaf de SDK of bridge door met een foutmelding aan de gebruiker, zodat deze op de hoogte is dat er inhoud is verdwenen.
+
 ---
 
 ### **6. Onboarding & Uitnodigingen**
@@ -355,6 +366,9 @@ Zorgverleners loggen in met de IdP van hun zorgorganisatie. Na succesvolle authe
 
 **RelatedPersons en Cliënten:**
 RelatedPersons en cliënten ontvangen email uitnodigingen.
+
+**PGO gebruikers (MedMij)**
+PGO gebruikers gebruiken een nog te ontwikkelen Gegevensdienst om de beschikbare chats bij een DVA (een deelnemer aan deze specificatie) op te halen. Daarna stuurt het PGO een Matrix ID naar de DVA. De DVA voegt die gebruiker via een normale invite toe aan de bestaande Room & Space.
 
 ---
 
