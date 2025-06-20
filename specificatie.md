@@ -290,6 +290,17 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 
 Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
 
+##### Pseudonimisering/PRS
+Voor pseudonimisering gebruiken we de generieke functie Pseudoniemen Referentie Service (PRS). Het proces voor de PRS werkt als volgt:
+
+1. Je bent aangesloten op de PRS (zowel technisch als juridisch) en mag BSN verwerken
+2. Jij hebt een BSN van de persoon
+3. Je stuurt een verzoek naar de PRS om voor dat BSN van de persoon + de ontvangende partij (zoals ontdekt vanuit mCSD) een eenmalig pseudoniem-token te ontvangen
+4. Je voegt dat eenmalige pseudoniem-token (scoped op de ontvanger) toe aan de invite, zoals hierboven met het juiste identifier system.
+5. De ontvanger ontvangt de invite en is ook aangesloten op de PRS (technisch & juridisch)
+6. De ontvanger wisselt het eenmalige pseudoniem-token om bij de PRS om de BSN weer te ontvangen
+7. De ontvanger slaat de associatie BSN en CareTeam/Matrix Space op in haar database.
+
 #### 🔧 Custom State Events
 
 Naast de standaard Matrix events worden er custom state events gebruikt voor specifieke zorgfunctionaliteit:
