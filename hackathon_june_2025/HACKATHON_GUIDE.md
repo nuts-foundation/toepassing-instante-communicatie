@@ -32,6 +32,8 @@ Your bridge needs to handle two main workflows:
 
 ### Step 1.1: Identity Mapping Strategy
 
+![3pids.svg](3pids.svg)
+
 **Core Concept**: Map your platform's user identities to Matrix user IDs using third-party identifiers (3PIDs).
 
 **For Different User Types:**
