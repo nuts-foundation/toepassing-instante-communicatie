@@ -302,7 +302,7 @@ Naast de standaard Matrix events worden er custom state events gebruikt voor spe
 {
   "fhirRef": "Patient/123 | Practitioner/456 | RelatedPerson/789",
   "uraNr": "00000001",
-  "uziNr": "123456789", 
+  "uziNr": "123456789",
   "roleCode": "158965000",
   "email": "user@example.com"
 }
@@ -313,7 +313,7 @@ Naast de standaard Matrix events worden er custom state events gebruikt voor spe
 Voor het beheren van hiërarchische relaties tussen spaces en rooms:
 
 - **Space Parent Event (`m.space.parent`)**
-  - **State key**: Space ID 
+  - **State key**: Space ID
   - **Content**: `{"via": ["homeserver.nl"], "canonical": true}`
   - **Gebruik**: Geplaatst in room om aan te geven dat de room onderdeel is van een space
 
@@ -359,6 +359,10 @@ RelatedPersons en cliënten ontvangen email uitnodigingen.
 ---
 
 ### **7. Directory & Service Discovery: Generieke Functie Adressering en Homeserver Lokalisatie**
+
+
+
+![lokalisatie.jpg](diagrams/lokalisatie.jpg)
 
 #### 🔎 Generieke Functie Adressering via LRZA
 
