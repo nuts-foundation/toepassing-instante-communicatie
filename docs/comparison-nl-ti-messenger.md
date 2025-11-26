@@ -108,7 +108,7 @@ Dit document vergelijkt de Nederlandse aanpak voor instant messaging in de zorg 
 │   ┌──────────────┐      │      ┌──────────────┐             │
 │   │ Provider A   │      │      │ Provider B   │             │
 │   │ ┌──────────┐ │      │      │ ┌──────────┐ │             │
-│   │ │  Proxy   │◄───────┼──────►│  Proxy   │ │              │
+│   │ │  Proxy   │◄───────┼───────►│  Proxy   │ │             │
 │   │ └────┬─────┘ │             │ └────┬─────┘ │             │
 │   │ ┌────▼─────┐ │             │ ┌────▼─────┐ │             │
 │   │ │Homeserver│ │             │ │Homeserver│ │             │
