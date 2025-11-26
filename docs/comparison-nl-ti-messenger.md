@@ -18,10 +18,11 @@ Dit document vergelijkt de Nederlandse aanpak voor instant messaging in de zorg 
 
 ### Nederlandse Aanpak
 
-- **Homeserver per organisatie**: Elke zorgaanbieder kan een eigen Matrix homeserver draaien
+- **Provider-gehoste homeservers**: Zorgaanbieders kiezen een leverancier die een (multi-tenant) homeserver host
+- **Organisatie kan wisselen**: Via het migratieprotocol kan een organisatie van provider wisselen met behoud van zorgcontexten
 - **Volledige federatie**: Standaard Matrix Server-Server API voor cross-organisatie communicatie
 - **Geen centrale proxy**: Directe federatie tussen homeservers
-- **Data-soevereiniteit**: Organisaties beheren hun eigen data volledig
+- **Homeserver adres via mCSD**: Het homeserver adres wordt gepubliceerd in de mCSD van de organisatie
 
 ### Duitse TI-Messenger
 
@@ -34,10 +35,12 @@ Dit document vergelijkt de Nederlandse aanpak voor instant messaging in de zorg 
 
 | Eigenschap | NL | DE |
 |------------|----|----|
+| Homeserver model | Multi-tenant per leverancier | Per provider |
 | Directe federatie | Ja | Nee (via proxy) |
 | Expliciete federatielijst | Nee | Ja |
 | Centrale controle | Minimaal | Significant |
 | Server locatie-eis | Nee | Ja (Duitsland) |
+| Leverancier wisselen | Ja (migratieprotocol) | Onbekend |
 
 ---
 
@@ -50,19 +53,23 @@ Dit document vergelijkt de Nederlandse aanpak voor instant messaging in de zorg 
 │                    Gedistribueerd Model                     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│   ┌──────────────┐        ┌──────────────┐                  │
-│   │ Org A        │        │ Org B        │                  │
-│   │ ┌──────────┐ │        │ ┌──────────┐ │                  │
-│   │ │Homeserver│◄─────────┼─►Homeserver│ │   Matrix         │
-│   │ └──────────┘ │        │ └──────────┘ │   Federatie      │
-│   │ ┌──────────┐ │        │ ┌──────────┐ │                  │
-│   │ │  mCSD    │ │        │ │  mCSD    │ │                  │
-│   │ └──────────┘ │        │ └──────────┘ │                  │
-│   └──────────────┘        └──────────────┘                  │
-│            ▲                      ▲                         │
-│            │   Endpoint Discovery │                         │
-│            └──────────┬───────────┘                         │
-│                       ▼                                     │
+│   ┌─────────────────────────────┐   ┌──────────────┐        │
+│   │ Leverancier X (multi-tenant)│   │ Leverancier Y│        │
+│   │ ┌─────────────────────────┐ │   │ ┌──────────┐ │        │
+│   │ │      Homeserver         │◄────┼─►Homeserver│ │ Matrix │
+│   │ │  (Org A, Org B, ...)    │ │   │ │ (Org C)  │ │ Feder. │
+│   │ └─────────────────────────┘ │   │ └──────────┘ │        │
+│   └─────────────────────────────┘   └──────────────┘        │
+│                                                             │
+│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│   │ mCSD Org A   │  │ mCSD Org B   │  │ mCSD Org C   │      │
+│   │ (homeserver: │  │ (homeserver: │  │ (homeserver: │      │
+│   │  lev-x.nl)   │  │  lev-x.nl)   │  │  lev-y.nl)   │      │
+│   └──────────────┘  └──────────────┘  └──────────────┘      │
+│            ▲              ▲                 ▲               │
+│            │   Endpoint Discovery           │               │
+│            └──────────────┬─────────────────┘               │
+│                           ▼                                 │
 │              ┌──────────────┐                               │
 │              │    LRZA      │  Nationaal Register           │
 │              │  (toekomst)  │  (alleen URLs naar mCSD)      │
@@ -74,11 +81,12 @@ Dit document vergelijkt de Nederlandse aanpak voor instant messaging in de zorg 
 ```
 
 **Kerncomponenten:**
-- **Matrix Homeserver**: Per organisatie
-- **mCSD Endpoint**: Per organisatie (FHIR-gebaseerde directory)
+- **Matrix Homeserver**: Multi-tenant, gehost door leverancier (meerdere organisaties per homeserver)
+- **mCSD Endpoint**: Per organisatie (FHIR-gebaseerde directory, bevat homeserver adres)
 - **LRZA**: Nationaal register voor mCSD endpoint locaties (toekomst)
 - **NUTS Discovery**: Interim oplossing voor endpoint discovery (totdat LRZA beschikbaar is)
 - **IdentityServer (ma1sd)**: 3PID naar Matrix ID mapping
+- **Migratieprotocol**: Organisaties kunnen van leverancier wisselen met behoud van rooms/spaces
 
 ### Duitse TI-Messenger
 
