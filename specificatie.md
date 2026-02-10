@@ -1,5 +1,14 @@
 ## 🏗️ Toepassing instante communicatie
 
+**Versie: 0.2.0**
+
+### Changelog
+
+| Versie | Datum | Wijziging |
+|--------|-------|-----------|
+| 0.2.0 | 2026-02-10 | UC9 toegevoegd: Gebruiker Verwijderen (kick uit Room/Space) |
+| 0.1.0 | 2025-06-20 | Initiële versie specificatie |
+
 ---
 ### Copyright
 
@@ -72,6 +81,30 @@ Gebaseerd op real-world vereisten van zorgplatforms, demonstreren de volgende us
 - Audittrails voor alle communicaties
 - Privacy controles voor gevoelige discussies
 - Integratie met bestaande zorginformatiesystemen voor archivering
+
+#### 🚪 UC9: Gebruiker Verwijderen
+**Deelnemer Verwijderen uit Gesprek of Zorgnetwerk**
+
+Er zijn twee niveaus van verwijdering, overeenkomend met de Matrix Space/Room hiërarchie:
+
+**Verwijderen uit een Gesprek (Room-level kick):**
+- Zorgverlener (power level 75+) kan een deelnemer verwijderen uit een specifiek gesprek
+- Matrix: `m.room.member` event met `membership: "leave"` wordt verstuurd, inclusief verplichte `reason`
+- FHIR: De gebruiker wordt verwijderd uit `CommunicationRequest.recipient`
+- De gebruiker blijft lid van het CareTeam (Space) en kan opnieuw worden uitgenodigd voor het gesprek
+
+**Verwijderen uit een CareTeam (Space-level kick):**
+- Alleen de Care Team Lead / Hoofdbehandelaar (power level 100) kan een deelnemer uit het CareTeam verwijderen
+- Matrix: `m.room.member` event met `membership: "leave"` op de Space, gevolgd door een cascade naar alle child rooms waar de gebruiker lid van is
+- FHIR: De gebruiker wordt verwijderd uit `CareTeam.participant` (of `period.end` wordt gezet voor audittrail)
+- FHIR: De gebruiker wordt verwijderd uit `CommunicationRequest.recipient` voor elk gesprek waar de gebruiker in deelnam
+- De cascade naar child rooms wordt niet automatisch door Matrix uitgevoerd; dit is een verantwoordelijkheid van de applicatielaag
+
+**Algemeen:**
+- Verwijdering vereist een reden (`reason` veld) ten behoeve van de audittrail (zie UC8)
+- Verwijderde gebruikers kunnen opnieuw worden uitgenodigd (kick, geen ban)
+- Bij cross-organisatie verwijdering wordt het leave-event via Matrix federation gepropageerd naar de remote homeserver
+- `PractitionerRole.active` wordt niet aangepast; dit is een globale status die losstaat van CareTeam-membership
 
 ---
 
@@ -358,7 +391,7 @@ Het implementeren van custom emoji, video, afbeeldingen etc is optioneel. Als er
 
 ---
 
-### **6. Onboarding & Uitnodigingen**
+### **6. Onboarding, Uitnodigingen & Verwijdering**
 
 #### 📨 Gebruiker Uitnodigingsmethoden
 
@@ -380,6 +413,40 @@ RelatedPersons en cliënten ontvangen email uitnodigingen.
 
 **PGO gebruikers (MedMij)**
 PGO gebruikers gebruiken een nog te ontwikkelen Gegevensdienst om de beschikbare chats bij een DVA (een deelnemer aan deze specificatie) op te halen. Daarna stuurt het PGO een Matrix ID naar de DVA. De DVA voegt die gebruiker via een normale invite toe aan de bestaande Room & Space.
+
+#### 🚪 Gebruiker Verwijderen
+
+Verwijdering van gebruikers maakt gebruik van de Matrix kick-functionaliteit (`m.room.member` event met `membership: "leave"`). Er zijn twee niveaus van verwijdering:
+
+**Verwijderen uit een Gesprek (Room-level):**
+
+Een zorgverlener (power level 75+) kan een deelnemer uit een gesprek verwijderen:
+
+1. De zorgverlener stuurt een kick-event op de Room met een verplichte `reason`
+2. De applicatie werkt de bijbehorende `CommunicationRequest.recipient` bij
+3. De gebruiker blijft lid van het CareTeam (Space) en kan opnieuw worden uitgenodigd
+
+**Verwijderen uit een CareTeam (Space-level):**
+
+Alleen de Care Team Lead / Hoofdbehandelaar (power level 100) kan een deelnemer uit het CareTeam verwijderen:
+
+1. De hoofdbehandelaar stuurt een kick-event op de Space met een verplichte `reason`
+2. De applicatie doorloopt alle child rooms van de Space en kickt de gebruiker uit elke room waar deze lid van is (cascade). Matrix voert deze cascade **niet** automatisch uit; dit is een verantwoordelijkheid van de applicatielaag
+3. De applicatie verwijdert de gebruiker uit `CareTeam.participant` (of zet `period.end` voor audittrail)
+4. De applicatie werkt `CommunicationRequest.recipient` bij voor elk gesprek waar de gebruiker uit is verwijderd
+
+**Berichthistorie:**
+- De verwijderde gebruiker behoudt toegang tot de berichthistorie tot het moment van verwijdering (standaard Matrix-gedrag)
+- Nieuwe berichten na de kick zijn niet zichtbaar voor de verwijderde gebruiker
+
+**Her-uitnodiging:**
+- Kick (in tegenstelling tot ban) staat her-uitnodiging toe
+- Het standaard uitnodigingsproces (zie hierboven) wordt opnieuw gevolgd
+- Bij her-uitnodiging in een Space worden de bijbehorende FHIR resources opnieuw aangemaakt (`CareTeam.participant`)
+
+**Cross-organisatie verwijdering:**
+- Het leave-event wordt via Matrix federation gepropageerd naar de remote homeserver
+- Het ontvangende systeem is verantwoordelijk voor het bijwerken van de lokale cliënt-space associatie en FHIR resources
 
 ---
 
