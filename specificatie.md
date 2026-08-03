@@ -1,11 +1,12 @@
 ## 🏗️ Toepassing instante communicatie
 
-**Versie: 0.2.0**
+**Versie: 0.3.0**
 
 ### Changelog
 
 | Versie | Datum | Wijziging |
 |--------|-------|-----------|
+| 0.3.0 | 2026-08-03 | PRS-sectie herzien op de nieuwe GF Pseudonimisering (OPRF met blinding): omwisseling pseudoniem-token → BSN bestaat niet meer. Cliëntidentificatie verplaatst naar het geautoriseerde FHIR-kanaal; invite-context v2.0 met resolvebare verwijzing i.p.v. pseudo-BSN; zorgnetwerk-lokalisatie via GF Lokalisatie (NVI) toegevoegd (pull-model) |
 | 0.2.0 | 2026-02-10 | UC9 toegevoegd: Gebruiker Verwijderen (kick uit Room/Space) |
 | 0.1.0 | 2025-06-20 | Initiële versie specificatie |
 
@@ -286,13 +287,14 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 
 #### 🩺 Cliënt Associatie
 
-- **Cliëntidentiteit wordt alleen gecommuniceerd in uitnodigingsberichten** bij het uitnodigen van gebruikers van andere homeservers, als je die via mCSD hebt verkregen (als de andere kant ook een zorginstelling is).
+- **Matrix draagt geen cliëntidentiteit.** Invites en state events zijn in Matrix niet end-to-end versleuteld: homeservers kunnen deze inhoud inzien. Cliëntidentificatie loopt daarom volledig buiten Matrix om, via het geautoriseerde FHIR-kanaal tussen zorgaanbieders (beide partijen mogen het BSN verwerken op grond van de Wabvpz).
 - **Room metadata bevat geen cliëntinformatie** om datalekkage te voorkomen. Matrixservers bevatten hiermee geen persoonsgegevens.
 - Eenmaal uitgenodigd, is het ontvangende systeem verantwoordelijk voor het lokaal onderhouden van de cliënt-space associatie.
 - Gebruik `m.space.child` en `m.space.parent` events om een top level space en child rooms voor elk gesprek aan te maken, zonder cliëntdata bloot te stellen in de metadata.
 - **Uitnodigingscontext Uitbreiding:** Aan de content van uitnodigingsberichten is het `nl-ta-chat.invite.context` veld toegevoegd. Dit element bevat:
-  - **version**: Een versienummer voor de contextstructuur (momenteel 1.0)
-  - **room.subject**: Een FHIR resource van het subject van de room, waarin de cliëntidentificatie wordt meegegeven  Het `room.subject` veld bevat een FHIR resource (bijvoorbeeld een Patient resource) waarmee het ontvangende systeem de uitnodiging kan associëren met de juiste cliënt in hun eigen systeem. Dit zorgt ervoor dat zorgverleners van verschillende organisaties context hebben over welke cliënt het betreft wanneer ze worden uitgenodigd voor een care team discussie.
+  - **version**: Een versienummer voor de contextstructuur (momenteel 2.0)
+  - **room.subject**: Een *resolvebare verwijzing* (absolute FHIR-URL) naar het subject van de room bij de uitnodigende partij, bijvoorbeeld een CareTeam- of Patient-resource. Het ontvangende systeem resolvet deze verwijzing over het geautoriseerde FHIR-kanaal en ontvangt dáár de cliëntidentificatie (waaronder het BSN, Wabvpz-conform). De verwijzing zelf bevat geen persoonsgegevens; homeservers zien alleen een opake URL.
+  - n.b. In eerdere versies bevatte `room.subject` een inline FHIR Patient-resource met een pseudo-BSN. Dit is vervallen: de nieuwe PRS geeft ontvangers geen mogelijkheid om een pseudoniem te herleiden tot een cliënt (zie Pseudonimisering/PRS hieronder).
   - n.b. In deze versie is er bewust voor gekozen de _reden_ of _aandoening_ niet aan de context toe te voegen. Mogelijk in use-cases rond Shared Care Planning is een dergelijk veld van toepassing.
 
 **Voorbeeld Matrix Invite Event (Standaard JSON):**
@@ -304,13 +306,10 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
     "membership": "invite",
     "reason": "Invited to care team for patient consultation",
     "nl-ta-chat.invite.context": {
-      "version" : 1.0,
+      "version" : 2.0,
       "room.subject": {
-        "resourceType" : "Patient",
-        "identifier" : [{
-          "value": "87479412034",
-          "system": "http://fhir.nl/fhir/NamingSystem/pseudo-bsn"
-        }]
+        "reference": "https://fhir.hospital-a.nl/fhir/CareTeam/3f2a9c1e-8d4b-4a7e-9c2f-1b5e6d7a8f90",
+        "type": "CareTeam"
       }
     }
   },
@@ -321,18 +320,39 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 ```
 
 
-Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
+Deze aanpak zorgt ervoor dat er geen cliëntdata door Matrix stroomt: de invite bevat alleen een opake verwijzing, en de identificatie zelf vindt plaats over het geautoriseerde FHIR-kanaal tussen de zorgaanbieders.
 
 ##### Pseudonimisering/PRS
-Voor pseudonimisering gebruiken we de generieke functie Pseudoniemen Referentie Service (PRS). Het proces voor de PRS werkt als volgt:
 
-1. Je bent aangesloten op de PRS (zowel technisch als juridisch) en mag BSN verwerken
-2. Jij hebt een BSN van de persoon
-3. Je stuurt een verzoek naar de PRS om voor dat BSN van de persoon + de ontvangende partij (zoals ontdekt vanuit mCSD) een eenmalig pseudoniem-token te ontvangen
-4. Je voegt dat eenmalige pseudoniem-token (scoped op de ontvanger) toe aan de invite, zoals hierboven met het juiste identifier system.
-5. De ontvanger ontvangt de invite en is ook aangesloten op de PRS (technisch & juridisch)
-6. De ontvanger wisselt het eenmalige pseudoniem-token om bij de PRS om de BSN weer te ontvangen
-7. De ontvanger slaat de associatie BSN en CareTeam/Matrix Space op in haar database.
+Voor pseudonimisering sluiten we aan op de generieke functie [Pseudonimisering](https://minvws.github.io/generiekefuncties-docs/en/pseudonymisation.html) (PRS).
+
+> **Let op:** de PRS is ten opzichte van eerdere versies van deze specificatie fundamenteel gewijzigd. De PRS is nu een *Oblivious Pseudorandom Function* (OPRF) met blinding. Er bestaat **geen operatie meer om een pseudoniem-token om te wisselen voor het BSN**: een ontvanger krijgt uitsluitend een stabiel, ontvanger-specifiek pseudoniem en kan daar niet zelfstandig een BSN of eigen cliëntrecord uit afleiden.
+
+De nieuwe werking in het kort:
+
+1. De verzendende partij kent het BSN (eigen bronregistratie, Wabvpz) en leidt daar via HKDF een curvepunt uit af, gescoped op de ontvangende organisatie.
+2. De verzender blindeert dit punt met een random factor en stuurt alleen het geblindeerde punt naar de PRS; de PRS ziet het BSN dus nooit.
+3. De PRS evalueert met zijn geheime sleutel en retourneert het resultaat, versleuteld (JWE) naar de ontvanger.
+4. De ontvanger deblindeert (met de blindfactor die hij van de verzender ontvangt) en houdt een stabiel, ontvanger-specifiek pseudoniem over.
+
+**Consequentie voor deze toepassing:** een pseudoniem is een *matching*-sleutel, geen identificatiemiddel. Een ontvanger die een pseudoniem in een invite ontvangt, kan de bijbehorende cliënt alleen herkennen als hij vooraf voor zijn volledige cliëntpopulatie pseudoniemen heeft voorberekend en bijhoudt (inclusief herberekening bij sleutelrotatie). Dat is voor XIS-leveranciers geen realistische eis. Cliëntidentificatie via een gepusht pseudoniem in de invite is daarom vervallen; in plaats daarvan geldt:
+
+- **Matrix draagt geen cliëntidentiteit** — identificatie loopt via het geautoriseerde FHIR-kanaal (zie de invite-context met resolvebare verwijzing hierboven).
+- **Het vindbaar maken van een zorgnetwerk loopt via de GF Lokalisatie** (pull-model, zie hieronder). Daar wordt het pseudoniem gebruikt waarvoor het ontworpen is: matching bij een centraal register.
+
+##### Zorgnetwerk-lokalisatie via GF Lokalisatie (pull)
+
+Het bestaan van een zorgnetwerk wordt geregistreerd als lokalisatierecord in de [GF Lokalisatie/NVI](https://minvws.github.io/generiekefuncties-docs/en/localization.html) — "custodian X heeft een zorgnetwerk voor cliënt Z (pseudoniem)" — met een eigen zorgcontext-type voor instante communicatie / zorgnetwerken. Het record bevat bewust géén space-referentie, conform het NVI-principe dat het register alleen het bestaan bij een custodian signaleert (`emptyReason: withheld`); de details worden bij de custodian zelf opgehaald.
+
+Flow voor een zorgaanbieder die wil aansluiten bij het zorgnetwerk van een cliënt:
+
+1. De zorgverlener werkt vanuit het geopende cliëntdossier — het BSN is voorhanden. Het XIS berekent *on demand* het pseudoniem voor deze ene cliënt (de client-rol in de OPRF, de richting die wél eenvoudig is) en bevraagt het lokalisatieregister.
+2. Het register antwoordt met de custodian-URA('s) die een zorgnetwerk voor deze cliënt voeren.
+3. Via LRZA/mCSD (GF Adressering) wordt het FHIR-endpoint van de custodian bepaald.
+4. Bij de custodian wordt over het geautoriseerde kanaal de cliënt (op BSN) en de bijbehorende CareTeam(s) opgevraagd — hier vindt de identificatie plaats, Wabvpz-conform.
+5. De zorgaanbieder voegt zijn zorgverlener toe als participant aan de CareTeam; het platform van de custodian vertaalt dit naar een Matrix-invite voor het bijbehorende Matrix-ID (gevonden via mCSD). De FHIR CareTeam blijft source of truth; Matrix-membership volgt.
+
+Hiermee is geen pseudoniementabel bij de ontvanger nodig en stroomt er geen BSN door Matrix. Voor de omgekeerde richting (de custodian nodigt proactief een zorgaanbieder uit) wordt de cliëntidentiteit eveneens via het directe FHIR-kanaal overgedragen, met de resolvebare verwijzing in de invite-context.
 
 #### 🔧 Custom State Events
 
@@ -696,3 +716,7 @@ Voor het correct identificeren van Matrix-gerelateerde contactinformatie worden 
 ```
 "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
 ```
+- [ ] **Zorgcontext-type voor zorgnetwerken in de GF Lokalisatie (NVI)**: er is een code nodig in de NL-GF Zorgcontext Types valueset voor "zorgnetwerk / instante communicatie". In te brengen bij de Design Authority van de generieke functies (inbreng vanuit NUTS).
+- [ ] **Consent/Mitz**: wie mag het bestaan van een zorgnetwerk voor een cliënt bevragen? Het bestaan van een netwerk bij een custodian is zelf al gevoelige metadata; het toestemmingsmodel moet hierop worden afgestemd.
+- [ ] **Registratiediscipline lokalisatierecords**: platforms moeten records aanmaken bij creatie en verwijderen bij opheffing van een zorgnetwerk (NVI kent alleen delete + create, geen update).
+- [ ] **Pseudo-BSN identifier in mCSD Patient-voorbeeld** (sectie 7): het naming system `http://fhir.nl/fhir/NamingSystem/pseudo-bsn` verwijst naar het oude PRS-model; bepalen welk (platform-eigen) pseudoniem hier passend is nu de PRS geen omwisselbare pseudoniemen meer levert.
