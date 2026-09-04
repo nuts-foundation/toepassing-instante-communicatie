@@ -1,11 +1,13 @@
 ## 🏗️ Toepassing instante communicatie
 
-**Versie: 0.2.0**
+**Versie: 0.2.2**
 
 ### Changelog
 
 | Versie | Datum | Wijziging |
-|--------|-------|-----------|
+| --- | --- | --- |
+| 0.2.2 | 2026-09-04 | Sectie 7 bijgewerkt naar de actuele richting van GF Adressering: centraal LRZa zonder persoonsgegevens, per zorgorganisatie een Endpoint naar het eigen mCSD endpoint met de zorgverleners en hun Matrix-adressen; infobox dat GF Adressering nog in ontwikkeling is |
+| 0.2.1 | 2026-09-04 | Notitie toegevoegd dat de GF Pseudonimisering (PRS) wordt herontworpen; sectie Pseudonimisering/PRS en de pseudo-BSN in de invite-context gemarkeerd als te herzien |
 | 0.2.0 | 2026-02-10 | UC9 toegevoegd: Gebruiker Verwijderen (kick uit Room/Space) |
 | 0.1.0 | 2025-06-20 | Initiële versie specificatie |
 
@@ -14,7 +16,7 @@
 
 ![](.gitbook/assets/license.png)
 
-This document is released under the [Attribution-ShareAlike 4.0 International \(CC BY-SA 4.0\) license](https://creativecommons.org/licenses/by-sa/4.0/).
+This document is released under the [Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license](https://creativecommons.org/licenses/by-sa/4.0/).
 ---
 
 ### **1. Doelstelling**
@@ -181,12 +183,12 @@ Deze methode zorgt voor een betere interoperabiliteit en vertrouwen tussen versc
   - Voor **Zorgverleners**: Na succesvolle authenticatie is het UZI-nummer en URA-nummer, en mogelijk de rolcode bekend. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is:
     1. Zoek op waar de mCSD van het URA-nummer staat (nu is dat met NUTS discovery)
     2. Als de gebruiker bij een ander mCSD staat:
-       - Zoek de resource op in dat externe mCSD
-       - Als die daar geen matrix-id heeft stopt het proces daar
-       - Als die wel bestaat, gebruik die gevonden matrix-id
+      - Zoek de resource op in dat externe mCSD
+      - Als die daar geen matrix-id heeft stopt het proces daar
+      - Als die wel bestaat, gebruik die gevonden matrix-id
     3. Als de mCSD omgeving de eigen is:
-       - Kijk in de eigen mCSD database of deze al een matrix-account heeft
-       - Zo niet, maak dan een matrix-id aan met als 3PID de UZI, URA en eventueel rolcode
+      - Kijk in de eigen mCSD database of deze al een matrix-account heeft
+      - Zo niet, maak dan een matrix-id aan met als 3PID de UZI, URA en eventueel rolcode
   - Voor **RelatedPersons** (bijv. mantelzorgers) en **Cliënten** worden identiteiten verschaft door het zorgplatform.
   - Een enkele IdentityServer per homeserver (vereist door Matrix spec).
 
@@ -252,7 +254,6 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
     "room": 75
   }
 }
-
 ```
 
 **Room-Level Toestemming Matrix Template (Gesprekken):**
@@ -293,7 +294,7 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 - **Uitnodigingscontext Uitbreiding:** Aan de content van uitnodigingsberichten is het `nl-ta-chat.invite.context` veld toegevoegd. Dit element bevat:
   - **version**: Een versienummer voor de contextstructuur (momenteel 1.0)
   - **room.subject**: Een FHIR resource van het subject van de room, waarin de cliëntidentificatie wordt meegegeven  Het `room.subject` veld bevat een FHIR resource (bijvoorbeeld een Patient resource) waarmee het ontvangende systeem de uitnodiging kan associëren met de juiste cliënt in hun eigen systeem. Dit zorgt ervoor dat zorgverleners van verschillende organisaties context hebben over welke cliënt het betreft wanneer ze worden uitgenodigd voor een care team discussie.
-  - n.b. In deze versie is er bewust voor gekozen de _reden_ of _aandoening_ niet aan de context toe te voegen. Mogelijk in use-cases rond Shared Care Planning is een dergelijk veld van toepassing.
+  - n.b. In deze versie is er bewust voor gekozen de *reden* of *aandoening* niet aan de context toe te voegen. Mogelijk in use-cases rond Shared Care Planning is een dergelijk veld van toepassing.
 
 **Voorbeeld Matrix Invite Event (Standaard JSON):**
 ```json
@@ -324,6 +325,11 @@ Matrix spaces gebruiken een power level systeem (0-100) om toestemmingen te behe
 Deze aanpak zorgt ervoor dat cliëntdata alleen wordt blootgesteld tijdens het uitnodigingsproces en niet persistent wordt in room state.
 
 ##### Pseudonimisering/PRS
+
+> **Let op: de PRS wordt herontworpen.** De Generieke Functie Pseudonimisering wordt door VWS opnieuw ontworpen. Zie de concept-implementatiegids [Pseudonymisation](https://minvws.github.io/generiekefuncties-docs/en/pseudonymisation.html) (status draft, versie 0.10.0, stand augustus 2026). Die gids beschrijft slechts een deel van de PRS-specificatie, namelijk het cryptografische mechanisme: een HKDF-afleiding van het BSN gescoped op de ontvanger, een OPRF met blinding, en één `evaluate`-transactie waarbij de PRS zelf geen BSN of pseudoniem ziet of bewaart. Onderwerpen als sleutelrotatie, beheer, aansluitvoorwaarden en de volledige referentieflow zijn daar nog niet in uitgewerkt.
+>
+> In het nieuwe ontwerp bestaat er geen operatie meer om een pseudoniem-token om te wisselen voor het BSN. Het hieronder beschreven proces (met name stap 3 tot en met 6) gaat daar wel van uit en zal in deze vorm niet blijven bestaan. Deze sectie, de invite-context (`room.subject` met pseudo-BSN) en het Patient-voorbeeld in sectie 7 worden herzien zodra het PRS-ontwerp definitief is. Implementaties moeten er rekening mee houden dat dit deel van de specificatie gaat wijzigen.
+
 Voor pseudonimisering gebruiken we de generieke functie Pseudoniemen Referentie Service (PRS). Het proces voor de PRS werkt als volgt:
 
 1. Je bent aangesloten op de PRS (zowel technisch als juridisch) en mag BSN verwerken
@@ -401,10 +407,10 @@ Zorgverleners loggen in met de IdP van hun zorgorganisatie. Na succesvolle authe
 1. Op basis van het URA-nummer wordt opgezocht wat het mCSD adres van de zorgaanbieder is
 2. Wordt bepaald of de mCSD van de zorgaanbieder wordt beheerd door de huidige leverancier
 3. Afhankelijk van wie de mCSD beheert:
-   - Indien de mCSD niet door de huidige leverancier wordt beheerd:
-     - Wordt door middel van mCSD de zorgverlener opgezocht
-     - Indien de account niet bestaat, kan de zorgverlener enkel naar de omgeving van de zorgaanbieder worden verwezen om een matrix identiteit te krijgen
-   - Indien de mCSD door de huidige leverancier wordt beheerd kan automatisch een account worden aangemaakt
+  - Indien de mCSD niet door de huidige leverancier wordt beheerd:
+    - Wordt door middel van mCSD de zorgverlener opgezocht
+    - Indien de account niet bestaat, kan de zorgverlener enkel naar de omgeving van de zorgaanbieder worden verwezen om een matrix identiteit te krijgen
+  - Indien de mCSD door de huidige leverancier wordt beheerd kan automatisch een account worden aangemaakt
 
 *Vooralsnog gaan we er van uit dat de mCSD door dezelfde leverancier wordt geleverd als de homeserver.*
 
@@ -456,27 +462,30 @@ Alleen de Care Team Lead / Hoofdbehandelaar (power level 100) kan een deelnemer 
 
 ![lokalisatie.jpg](diagrams/lokalisatie.jpg)
 
-#### 🔎 Generieke Functie Adressering via LRZA
+#### 🔎 Generieke Functie Adressering via LRZa
 
-**Generieke Functie Adressering** (geïmplementeerd als gecentraliseerde mCSD Directory via LRZA) biedt het framework voor lokalisatie van de Homeserver:
-  - LRZA (Landelijke Register Zorgadressering) publiceert één URL per zorgaanbieder met hun mCSD endpoint.
-  - Elke zorgaanbieder selecteert één leverancier om hun mCSD endpoint te implementeren.
-  - Het mCSD endpoint functioneert als een adresboek voor elke zorgaanbieder.
+> **Let op: de Generieke Functie Adressering en het LRZa zijn in ontwikkeling.** De specificaties van GF Adressering (functioneel ontwerp, technisch ontwerp en implementatiegids) worden in de Design Authority van VWS nog regelmatig aangepast en worden daarna eerst beproefd. Deze sectie beschrijft de richting zoals die in september 2026 bekend is en wordt bijgewerkt zodra de implementatiegids definitief is. Zie de concept-implementatiegids [Care Services Directory](https://minvws.github.io/generiekefuncties-docs/en/care-services.html).
 
-Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom wordt NUTS-discovery ingezet om het mCSD op basis van het URA vast te stellen.
+**Generieke Functie Adressering** biedt het framework voor de lokalisatie van de homeserver en van zorgverleners:
+  - Het LRZa (Landelijk Register Zorgaanbieders) is een centraal register van zorgaanbieders met hun diensten, locaties en endpoints. Afnemers werken met een lokale replica van het LRZa.
+  - Het LRZa verwerkt geen persoonsgegevens. Zorgverleners (Practitioner en PractitionerRole) staan daarom niet in het LRZa.
+  - Het LRZa bevat per zorgorganisatie een Endpoint dat verwijst naar het mCSD endpoint van die organisatie. Dat mCSD endpoint bevat de PractitionerRoles en Practitioners van de organisatie en functioneert als haar adresboek.
+  - Op basis van het URA-nummer wordt in het LRZa het mCSD endpoint van de zorgorganisatie opgezocht; daarna wordt in dat mCSD endpoint de zorgverlener opgezocht.
+
+Vooralsnog is het LRZa nog niet in staat deze gegevens te verwerken, daarom wordt NUTS-discovery ingezet om het mCSD endpoint op basis van het URA vast te stellen.
 
 #### 📖 Matrix User Discovery via mCSD
 
 - **FHIR mCSD Resource Gebruik**:
-  - Zorgverleners met hun Matrix contact informatie worden gepubliceerd in mCSD records.
+  - Het mCSD endpoint van de zorgorganisatie bevat de adresseringsgegevens van haar zorgverleners, inclusief hun Matrix-adressen. Deze gegevens staan niet in het LRZa.
   - Matrix adressen worden opgeslagen in de telecom array van Practitioner, Patient en RelatedPerson resources.
   - Applicaties gebruiken mCSD om zorgverleners en services op te zoeken op functie of locatie.
   - Tijdens identificatie en onboarding worden het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs aan het Matrix-gebruikersaccount gekoppeld.
 
 **Belangrijke FHIR Resources voor mCSD Integratie:**
 
-   1. **Organization** - Zorgaanbieder organisaties
-   ```json
+  1. **Organization** - Zorgaanbieder organisaties
+```json
    {
      "resourceType": "Organization",
      "id": "07d91b7d-eb06-47ef-b077-28e0d274c161",
@@ -508,10 +517,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
        }
      ]
    }
-   ```
+```
 
 2. **Practitioner** - Individuele zorgprofessionals
-   ```json
+```json
    {
      "resourceType": "Practitioner",
      "id": "6a6b85e9-f7d8-4b62-8dc5-94f00b1d6594",
@@ -536,10 +545,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
        }
      ]
    }
-   ```
+```
 
 3. **PractitionerRole** - Koppelt zorgverleners aan organisaties met rollen
-   ```json
+```json
    {
      "resourceType": "PractitionerRole",
      "id": "df54b889-d6f5-4d89-993f-2af7950ea83b",
@@ -547,10 +556,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
      "organization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "code": [{"coding": [{"system": "http://snomed.info/sct", "code": "158965000", "display": "Medical practitioner"}]}]
    }
-   ```
+```
 
 4. **Patient** - Cliënten met optionele Matrix toegang
-   ```json
+```json
    {
      "resourceType": "Patient",
      "id": "patient-123",
@@ -575,10 +584,10 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
        }
      ]
    }
-   ```
+```
 
 5. **RelatedPerson** - Mantelzorgers en familieleden
-   ```json
+```json
    {
      "resourceType": "RelatedPerson",
      "id": "related-person-456",
@@ -604,27 +613,27 @@ Vooralsnog is het LRZA nog niet in staat deze gegevens te verwerken, daarom word
        }
      ]
    }
-   ```
+```
 
 6. **HealthcareService** - Services aangeboden door organisaties
-   ```json
+```json
    {
      "resourceType": "HealthcareService",
      "id": "83f74cda-a81b-4598-a9d0-bab02d387caf",
      "providedBy": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"},
      "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/service-category", "code": "1"}]}]
    }
-   ```
+```
 
 7. **Location** - Fysieke locaties waar services worden aangeboden
-   ```json
+```json
    {
      "resourceType": "Location",
      "id": "351027f8-febc-4698-a6c7-2b3d3d456fab",
      "name": "Hospital A Main Building",
      "managingOrganization": {"reference": "Organization/07d91b7d-eb06-47ef-b077-28e0d274c161"}
    }
-   ```
+```
 
 **ContactPoint Extensions voor Matrix:**
 
@@ -646,13 +655,13 @@ Voor het correct identificeren van Matrix-gerelateerde contactinformatie worden 
   3. Applicatie zoekt naar de zorgverlener in mCSD
   4. mCSD verschaft de homeserver en identiteitsinformatie
   5. Twee scenario's:
-     - **Optie 1**: Homeserver behoort tot de huidige leverancier
-       - Gebruikersdata is al gesynchroniseerd of kan worden opgehaald via standaard integratie (Application Service, aka AS)
-     - **Optie 2**: Homeserver behoort tot een andere leverancier
-       - Gebruikersdata moet worden opgevraagd tijdens de sessie via client-server API
+    - **Optie 1**: Homeserver behoort tot de huidige leverancier
+      - Gebruikersdata is al gesynchroniseerd of kan worden opgehaald via standaard integratie (Application Service, aka AS)
+    - **Optie 2**: Homeserver behoort tot een andere leverancier
+      - Gebruikersdata moet worden opgevraagd tijdens de sessie via client-server API
   6. Bij nieuwe Practitioner accounts:
-     - Configureer het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs via de Matrix Identity Server API
-     - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie.
+    - Configureer het UZI-nummer, URA-nummer en rolcode(s) als 3PIDs via de Matrix Identity Server API
+    - Dit vergemakkelijkt reverse-lookup en identiteitsverificatie.
 
 #### 📚 Data Model Uitbreidingen
 
@@ -668,8 +677,8 @@ Voor het correct identificeren van Matrix-gerelateerde contactinformatie worden 
 - **Wanneer zorgaanbieder van leverancier wisselt**:
   1. Zorgaanbieder publiceert nieuw mCSD endpoint bij andere leverancier, of updatet bestaande mCSD database met nieuwe homeserver adressen als Endpoints van de PractitionerRole
   2. Huidige leverancier observeert de wijziging en voor gebruikers die actief waren in hun homeserver maar nu elders toegewezen zijn:
-     - Nodigt de nieuwe identiteit uit voor alle relevante rooms
-     - Deactiveert het huidige account met Matrix [account deactivation API](https://spec.matrix.org/v1.14/client-server-api/#post_matrixclientv3accountdeactivate)
+    - Nodigt de nieuwe identiteit uit voor alle relevante rooms
+    - Deactiveert het huidige account met Matrix [account deactivation API](https://spec.matrix.org/v1.14/client-server-api/#post_matrixclientv3accountdeactivate)
   3. 3PIDs (UZI-nummer, URA-nummer en rolcode) worden gebruikt om de identiteit te verifiëren tijdens de migratie, waarbij de combinatie van deze identifiers zorgt voor unieke identificatie van zorgverleners en hun specifieke rollen.
 
 ---
@@ -696,3 +705,4 @@ Voor het correct identificeren van Matrix-gerelateerde contactinformatie worden 
 ```
 "connectionType": {"system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type", "code": "hl7-fhir-rest"}
 ```
+- [ ] **Herontwerp GF Pseudonimisering (PRS)**: de sectie Pseudonimisering/PRS, de pseudo-BSN in de invite-context en het Patient-voorbeeld in sectie 7 zijn gebaseerd op het oude PRS-model (omwisselbaar pseudoniem-token). Herzien zodra het nieuwe ontwerp (OPRF met blinding, zonder omwisseling naar BSN) definitief is; zie de notitie in de sectie Pseudonimisering/PRS.
